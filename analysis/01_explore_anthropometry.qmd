@@ -1,0 +1,346 @@
+---
+title: "Anthropometric outcomes — exploratory analysis"
+subtitle: "Family 1: BMI, waist, hip"
+author: "Your name"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: true
+    code-tools: true
+    theme: cosmo
+    fig-width: 8
+    fig-height: 5
+    fig-cap-location: bottom
+execute:
+  echo: true
+  warning: false
+  message: false
+  cache: false
+knitr:
+  opts_chunk:
+    fig.align: center
+---
+
+```{r}
+#| label: diagnose
+#| include: true
+
+cat("Working directory:", getwd(), "\n")
+cat("_targets dir exists:", dir.exists("_targets"), "\n")
+cat("_targets.R exists:", file.exists("_targets.R"), "\n")
+cat("Files here:", paste(head(list.files()), collapse = ", "), "\n")
+
+library(targets)
+library(tidyverse)
+library(patchwork)
+library(ggstatsplot)
+library(ggthemes)
+source("R/eda_functions.R")
+# Load the cleaned data from the pipeline
+tar_load(data_clean)
+```
+
+# Background
+
+The PIP (structured Diet and Exercise Education program) is a 12-month randomized controlled trial in 192 patients with type 2 diabetes. This notebook explores the **anthropometric family** of outcomes — BMI, waist circumference, and hip circumference — at baseline and post-intervention, to inform the Bayesian ANCOVA total-effect analysis (see `reports/01_anthropometric_outcomes.qmd`).
+
+The questions this notebook answers:
+
+1.  Are the anthropometric outcomes distributed sensibly, with no extreme outliers or implausible values?
+2.  Are the two arms balanced at baseline (sanity check on randomization)?
+3.  Are the pre-post relationships strong enough to justify ANCOVA?
+4.  Are the residual changes correlated across outcomes (motivation for joint multivariate modeling)?
+
+# Data overview
+
+```{r}
+#| label: tbl-overview
+#| tbl-cap: "Sample size and treatment allocation."
+
+data_clean |>
+  count(treatment) |>
+  knitr::kable()
+```
+
+```{r}
+#| label: glimpse
+#| include: false
+
+glimpse(data_clean)
+```
+
+# Univariate distributions
+
+## Pre vs Post BMI for the Control arm 
+
+The control arm provides our reference for what happens in the absence of the intervention. If the pre and post distributions in this arm look meaningfully different, we'd have evidence of secular change — patients improving for reasons unrelated to PIP (regression to the mean, seasonal effects, attention received during the trial itself). The two distributions look essentially overlapping, with the post distribution if anything sitting slightly to the right of the pre. This is reassuring: it suggests no large secular trend operating on the control arm, so any difference we observe between arms in the post-intervention measurements can be more cleanly attributed to the intervention itself.
+
+```{r}
+# Subset the data to contain only the control arm 
+control_arm <- data_clean %>% filter(treatment == "control")
+
+# Plot the Control arm Post Treatment
+bmi_post_dist <- ggplot(data = control_arm, aes(x = bmi_post ))+
+  geom_histogram(fill = "lightgrey", colour = "black" )+
+  labs(
+    title = "Post-Intervention Distribution",
+    x = "BMI Post-Intervention",
+    y = "Count"
+  )+
+  theme_tufte()
+# Plot the Control arm Pre Treatment
+bmi_pre_dist <- ggplot(data = control_arm, aes(x = bmi_pre))+
+  geom_histogram(fill = "lightgrey", colour = "black")+
+  labs(
+    title = "Pre-Intervention Distribution",
+    x = "BMI Pre-Intervention",
+    y = "Count"
+  )+
+  theme_tufte()
+
+# Combine the plots 
+(bmi_post_dist + bmi_pre_dist) + plot_annotation(
+  title = "BMI Control Arm Comparison")
+
+```
+
+
+## Pre-intervention BMI faceted by PIP Treatment
+
+Both arms show right-skewed BMI distributions centered around 30, with substantial overlap and similar tails. This is the visual sanity check on randomization: if randomization worked, the two arms should be exchangeable at baseline. Small differences in tail behavior (a few extra outliers in one arm) are expected with n ≈ 95 per arm — chance imbalance, not a randomization failure. The skewness is anatomically expected: BMI is bounded below at the lower end of healthy weight but unbounded above, so right skew is normal in a clinical population. For modeling, this means a Gaussian likelihood may slightly under-fit the upper tail; we'll check this with posterior predictive checks but expect the impact on the treatment-effect posterior to be minor.
+
+```{r}
+marginal_distribution(
+  data_clean = data_clean,
+  x = bmi_pre,
+  title = "Pre-Intervention BMI distribution and arm comparison"
+)
+```
+
+## Post-intervention BMI faceted by PIP Treatment 
+
+The intervention arm has shifted visibly leftward relative to the control arm, with the distribution's mode falling in roughly the 25–28 range versus 28–32 for the control. The skewness pattern is preserved — this is a location shift, not a shape change — which is what we'd hope for if the intervention is acting uniformly across the BMI distribution. The visual gap between arms is consistent with the abstract's reported BMI difference of −1.86. This is the headline plot: a treatment effect should be visible to the naked eye before any model is fit, and it is.
+
+```{r}
+marginal_distribution(
+  data_clean = data_clean,
+  x = bmi_post,
+  title = "Post-Intervention BMI distribution and arm comparison"
+)
+
+```
+
+
+## Post-intervention Weight faceted by PIP Treatment 
+
+Weight shows the same pattern as BMI, which is mechanically expected: with height held constant across pre and post, BMI and weight are essentially the same variable on different scales. The leftward shift in the intervention arm is consistent with the BMI shift. We'll model BMI rather than weight in the formal analysis because BMI is the published primary endpoint and the standard clinical reporting unit, but they would tell the same story.
+
+```{r}
+marginal_distribution(
+  data_clean = data_clean,
+  x  = weight_post,
+  title = "Post-Intervention Weight Comparison Between Arms"
+)
+```
+
+
+```{r}
+# Subset the data to include only the intervention arm 
+intervention_data <- data_clean %>% 
+  filter(treatment == "intervention")
+
+# Reshape the data
+weight_long <- intervention_data %>%
+  select(weight_pre, weight_post) %>%
+  pivot_longer(everything(), 
+               names_to = "timepoint", 
+               values_to = "weight") %>%
+  mutate(timepoint = factor(
+    timepoint, 
+    levels = c("weight_pre", "weight_post"),
+    labels = c("Pre-Intervention", "Post—Intervention")))
+
+# Plot 
+ggplot(weight_long, aes(x = timepoint, y = weight)) +
+  geom_boxplot(fill = "lightgrey", outlier.colour = "red") +
+  labs(
+    title = "Weight Pre-Intervention vs Post—Intervention Arm",
+    x = NULL,
+    y = "Weight (kg)"
+    ) +
+  theme_minimal()
+
+```
+Within the intervention arm, comparing pre to post weight shows the within-arm change directly: the median drops by a few kilograms, the IQR shifts downward, and the spread compresses slightly. The red outliers are at both ends pre-intervention but cluster more on the heavy side post-intervention — consistent with intervention being effective on average but with some non-responders remaining at higher weights. This kind of paired view complements the between-arm comparison: it confirms the intervention arm's distribution moved, rather than the post-intervention difference being driven by a few extreme cases.
+
+## Post-Intervention Waist facered by PIP Treatment
+
+```{r}
+marginal_distribution(
+  data_clean = data_clean,
+  x = waist_post,
+  title = "Comparison Waist Post-Intervention Arm"
+)
+```
+Three or so clusters are visible. Possible explanations include (1) measurement granularity — waist is often recorded to the nearest cm or 0.5 cm, which can create artificial gaps, (2) heterogeneous response, where patients fall into qualitatively different responder profiles, or (3) post-hoc rounding by the dietitian recording the data. The control arm shows a less pronounced version of the same pattern, which favors the measurement-artifact explanation: if it were a true response heterogeneity, we'd expect it more in the intervention arm and not in the control. The clinical interpretation of this is muted; for modeling, the implication is that residuals on waist will look slightly less Gaussian than BMI residuals, which we'll watch for in posterior predictive checks but isn't grounds for switching likelihoods preemptively.
+
+## Post Intervention Hip faceted by PIP Treatment
+
+The intervention arm's hip distribution is more concentrated than the control's — narrower IQR, tighter mode — with similar central tendency. The "centering rather than reducing" pattern you noted is real and informative: hip circumference is largely structural (bone and muscle anchored to the pelvis) and less responsive to weight loss than waist or BMI in the short term. The intervention may be reducing variability without dramatically shifting the mean, which is consistent with mild fat redistribution rather than wholesale reduction. For modeling, this means the treatment effect on hip is likely smaller than on BMI or waist, and our posterior on hip should reflect that.
+
+```{r}
+marginal_distribution(
+  data_clean = data_clean,
+  x = hip_post,
+  title = "Comparison Hip Pre and Post-Intervention Arm"
+)
+```
+
+
+# Anthropometric outcomes — pre-post relationships
+
+## Relationships Weight Pre vs Post-Intervention
+
+Weight pre vs post: A clean linear relationship with high correlation in both arms — exactly the expected pattern. The intervention arm shows visibly more spread around the regression line, especially below it, consistent with a treatment effect concentrated on weight reduction (post < pre for many patients). This justifies including baseline weight (or BMI) as a covariate in the ANCOVA.
+
+```{r}
+scatter_pre_post(
+  data_clean = data_clean,x = weight_pre,y = weight_post)
+```
+
+## Relationships BMI Pre vs BMI Post-Intervention
+
+BMI pre vs post: As expected, mirrors the weight relationship. Tight correlation, more downside spread in the intervention arm. The clean linearity in both arms also tells us a single linear ANCOVA term for bmi_pre should be sufficient — no need for spline terms or interaction with treatment.
+
+```{r}
+scatter_pre_post(data = data_clean, x = bmi_pre, y = bmi_post)
+```
+
+## Relationships Waist Pre vs Waist Post-Intervention
+
+Waist pre vs post: Linear relationship persists but with the clustered structure visible in the marginal plots. The clusters fall along the regression line in both arms, supporting the measurement-granularity reading rather than separate response groups.
+
+```{r}
+scatter_pre_post(
+  data_clean = data_clean, x = waist_pre, y = waist_post)
+```
+
+
+## Relationships Hip Pre vs Hip Post-Intervention
+```{r}
+scatter_pre_post(data_clean = data_clean, x = hip_pre, y = hip_post)
+```
+
+Hip pre vs post: Similar to waist, with even tighter pre-post coupling. Hip changes are small relative to its baseline, which again tells us hip is more structural than the other measurements.
+
+# Pairwise relationships
+
+## Pairwise relationships between baselines
+
+### Pre-Intervention BMI Vs Pre-Intervention Waist
+BMI vs waist (baseline): Positive but moderate relationship. Both measure adiposity but differently — BMI is whole-body mass relative to height, waist is central adiposity. The moderate (rather than tight) correlation is consistent with patients who have similar BMI but different fat distributions. For modeling, this means including only bmi_pre (not waist_pre) in the BMI equation is fine; they're not redundant predictors but they're also not strongly competing.
+
+```{r}
+scatter_pre_post(data_clean = data_clean, x = waist_pre, y = bmi_pre)
+```
+
+### Pre-Intervention BMI Vs Pre-Intervention Hip
+
+BMI vs hip (baseline): Similar moderate relationship; same reasoning.
+```{r}
+scatter_pre_post(data_clean = data_clean, x = hip_pre, y = bmi_pre)
+```
+
+### Pre-Intervention Waist Vs Pre-Intervention Hip
+
+Weaker than I'd expect. This might be because in this T2D population, central adiposity (waist) varies more than lower-body adiposity (hip), partially decoupling them.
+
+```{r}
+scatter_pre_post(data_clean = data_clean, x = hip_pre, y = waist_pre)
+```
+
+### Pre-Intervention Weight Vs Pre-Intervention Waist
+
+Weight vs waist (baseline): Strong linear relationship — heavier patients have larger waists, as expected.
+
+```{r}
+scatter_pre_post(
+  data_clean = data_clean, x = waist_pre, y = weight_pre)
+```
+
+## Pairwise relationships between post values
+
+### Post-Intervention BMI Vs Post-Intervention Waist
+```{r}
+scatter_pre_post(
+  data_clean = data_clean, x = waist_post, y = bmi_post)
+```
+We observe weak positive relantionship and cluster structure more disctinct in the control Post-Intervention Arm
+
+### Post-Intervention BMI Vs Post-Intervention Hip
+
+```{r}
+scatter_pre_post(data_clean = data_clean, x = hip_pre, y = bmi_pre)
+```
+
+### Post-Intervention Waist Vs Post-Intervention Hip
+```{r}
+scatter_pre_post(data_clean = data_clean, x = hip_pre, y = waist_pre)
+```
+
+### Post-Intervention Weight Vs Post-Intervention Waist
+```{r}
+scatter_pre_post(
+  data_clean = data_clean, x = waist_pre, y = weight_pre)
+```
+
+The post-intervention pairwise relationships look very similar to the baseline pairwise relationships in shape and direction. This is good news: the intervention is shifting locations without distorting the natural co-variation among anthropometric measurements. If we'd seen, say, the BMI–waist relationship break down post-intervention, that would suggest the intervention is doing something biologically odd — preferentially reshaping one dimension without the others. We don't see that. The intervention looks like a coordinated reduction across the whole anthropometric profile.
+
+## Pairwise relationships between change scores
+
+```{r}
+# Add the delta scores to the clean data 
+delta_clean <- compule_delta_anthropometrics(data_clean)
+```
+
+### Delta BMI VS Delta Waist
+```{r}
+scatter_pre_post(
+  data_clean = delta_clean, x = delta_waist, y = delta_bmi)
+```
+
+### Delta BMI VS Delta Hip
+```{r}
+scatter_pre_post(
+  data_clean = delta_clean, x = delta_hip, y = delta_bmi)
+```
+
+The Δ-Δ scatterplots are the key plots for justifying joint multivariate modeling. Single-outcome ANCOVA is fine if the residual changes across outcomes are essentially independent. Joint modeling becomes worthwhile when residuals co-vary — when patients who lost more BMI also lost more waist and more hip, beyond what's predictable from baseline alone.
+ΔBMI vs ΔWaist: Modest positive correlation visible. Patients who reduced BMI also tended to reduce waist, with substantial scatter. This isn't tight enough to make joint modeling essential, but it's enough to provide some efficiency gain.
+ΔBMI vs ΔHip: Weaker correlation than ΔBMI–ΔWaist. Hip changes are smaller in magnitude (consistent with hip being more structural), so there's less variance to share with BMI.
+
+## Correlation Map 
+```{r}
+vars = c("waist_pre","waist_post","bmi_pre","bmi_post","waist_pre","waist_post","hip_pre", "hip_post","delta_waist", "delta_bmi", "delta_hip")
+
+pairwise_corrleation_map(
+  data_clean = delta_clean, 
+  vars = vars
+  )
+```
+The Spearman correlation matrix consolidates the visual story. The strongest correlations are the autoregressive ones — pre-post within each variable (waist 0.83, BMI 0.93, hip 0.80) — confirming that ANCOVA with baseline adjustment will be highly efficient. Cross-outcome change-score correlations are present but moderate (Δhip–Δbmi = 0.25, Δwaist–post-waist = −0.29, etc.), which justifies the multivariate model on efficiency grounds without making it strictly necessary. The negative correlations between deltas and post-intervention values are a regression-to-the-mean signature: patients with higher post values tended to have smaller (or negative) deltas, and vice versa — exactly the kind of pattern ANCOVA controls for by conditioning on baseline.
+
+# Summary of findings and modeling decisions
+On the data quality. The anthropometric outcomes are clean, with one previously-handled outlier (hip_post = 9.7). All four outcomes (weight, BMI, waist, hip) have approximately Gaussian distributions with mild right skew, well within the range where a Gaussian likelihood is reasonable. We'll verify with posterior predictive checks but expect no need for a Student-t or transformed model.
+
+On randomization. Baseline distributions and pairwise relationships look well-matched across arms. No evidence of randomization failure or selection effects. Baseline imbalance is at the level we'd expect from chance with n ≈ 95 per arm.
+
+On the model structure. Pre-post correlations are very high (0.80–0.93), strongly justifying ANCOVA over change-score or post-only comparisons. Cross-outcome change correlations are moderate (0.20–0.30), justifying a joint multivariate model on efficiency grounds. The visible leftward shift in the intervention arm's BMI and weight distributions is consistent with the abstract's reported effect size.
+
+On the primary outcome. BMI is the published primary endpoint and the natural anchor for this analysis. Waist and hip are secondary outcomes where smaller effects are expected (especially hip, which is more structural). We'll report all three.
+
+On potential modeling complications. The clustered structure visible in waist and hip post-intervention distributions is most likely measurement granularity rather than true response heterogeneity. We'll note this in the writeup but proceed with continuous Gaussian modeling.
+
