@@ -1,0 +1,19 @@
+project:
+  type: default
+  execute-dir: project
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-tools: true
+    fig-width: 8
+    fig-height: 5
+    fig-cap-location: bottom
+
+execute:
+  echo: true
+  warning: false
+  message: false
