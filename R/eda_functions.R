@@ -67,10 +67,10 @@ marginal_distribution <- function(data_clean, x, title) {
 
 ### Pairwise correlations of baselines ####
 pairwise_corrleation_map <- function(data_clean, vars) {
-  # Subset the data to include only the specifyed vars and plot them
+  # Subset the data to include only the specified vars and plot them
   cor_map_full <- ggcorrmat(
     data = data_clean,
-    cor.vars = vars,
+    cor.vars = tidyselect::all_of(vars),
     colors = c("#B2182B", "white", "#4D4D4D"),
     type = "nonparametric"
   )
@@ -84,6 +84,7 @@ scatter_pre_post <- function(data_clean, x, y) {
       data = data_clean,
       x = {{ x }},
       y = {{ y }},
+      results.subtitle = FALSE,
       grouping.var = treatment,
       annotation.args = list(
         title = paste0(
