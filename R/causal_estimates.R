@@ -178,9 +178,6 @@ plot_counterfactual_means <- function(
   # Return the plot 
   return(pc_means)
 }
-
-#### Plot the Posterior Distribution ####
-
   
   
   
