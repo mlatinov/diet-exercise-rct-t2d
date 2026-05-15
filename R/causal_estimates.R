@@ -5,16 +5,13 @@ library(marginaleffects)
 
 # Function to Extract Draws and calculate the ATE
 extract_effect <- function(model, data) {
-  # Transform
-  data_for_pred <- data %>%
-    mutate(treatment = as.numeric(treatment == "intervention"))
-
+  
   # Extract Mean Predictions
   pred_draws <- avg_predictions(
     model = model,
     by = "treatment",
     type = "response",
-    newdata = data_for_pred
+    newdata = data
   ) %>%
     posterior_draws()
 
@@ -33,7 +30,7 @@ extract_effect <- function(model, data) {
     prediction_draws = pred_draws,
     ate_draws        = ate_draws
   )
-
+  
   # Return the ATE
   return(combine_return)
 }
@@ -65,7 +62,7 @@ plot_ate_posterior <- function(
   
   # Color Control 
   pal_bayes <- c(
-    control = "#8E9AAF", treatment = "#264653",
+    control = "white", treatment = effect_color,
     effect = effect_color, null = "#E76F51"
   )
   
@@ -75,13 +72,13 @@ plot_ate_posterior <- function(
       .width         = c(0.66, 0.95),
       point_interval = "median_qi",
       fill  = pal_bayes["effect"],
-      alpha = 0.85
+      alpha = 0.7
     )+
     geom_vline(xintercept = 0, linetype = "dashed", colour = "grey30") +
     labs(
       x = "ATE",
       y = NULL,
-      title    = "Posterior of the average treatment effect",
+      title    = paste0("Posterior of the average treatment effect of the ", outcome_label," "),
       subtitle = "Median, 66% and 95% credible intervals",
       caption  = "Dashed line = no effect."
     ) +
@@ -95,7 +92,10 @@ plot_ate_posterior <- function(
 plot_threshold_curve <- function(
   ate_draws, 
   favours_neg = TRUE,
-  outcome_label = "outcome"
+  outcome_label = "outcome",
+  control_color = "lightblue4",
+  treatment_color = "red4",
+  effect_color = "red4"
   ) {
   
   # Find Treashholds
@@ -113,7 +113,7 @@ plot_threshold_curve <- function(
   
   # Color Control 
   pal_bayes <- c(
-    control = "#8E9AAF", treatment = "#264653",
+    control = control_color, treatment = treatment_color,
     effect = effect_color, null = "#E76F51"
   )
   
@@ -149,12 +149,14 @@ plot_threshold_curve <- function(
 plot_counterfactual_means <- function(
     pred_draws,
     outcome_label = "outcome",
+    control_color = "lightblue4",
+    treatment_color = "red4",
     effect_color = "red4"
     ){
   
   # Color Control 
   pal_bayes <- c(
-    control = "#8E9AAF", treatment = "#264653",
+    control = control_color, treatment = treatment_color,
     effect = effect_color, null = "#E76F51"
   )
   
