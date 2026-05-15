@@ -1,6 +1,6 @@
 #### Function to clean the Raw data ####
 clean_data_raw <- function(data_raw) {
-  data_clean <- data_raw %>%
+  data_raw %>%
     ## Rename all the variables that will be used in the analysis
     rename(
       # Identefiers
@@ -74,6 +74,15 @@ clean_data_raw <- function(data_raw) {
       "D_Heigh", "D_WT", "D_BMI", "D_Waist", "D_Hip", "D_W.H",
       "Waist.Hip_Pre", "Waist.Hip_Post", "Pre.Ex_Total"
     ))) %>%
+    # Fix Hip impossible minimum values of 9.6 assume wrong dot placement
+    mutate(
+      hip_post = if_else(hip_post <= 10, hip_post * 10, hip_post)
+    )
+}
+
+#### Function to preparare the data for Exploratory analysis 
+prepare_data_eda <- function(data_clean){
+  data_clean %>%
     # Convert Categorical Features to factors
     mutate(
       # Demografics
@@ -84,36 +93,44 @@ clean_data_raw <- function(data_raw) {
       diet_adherence = factor(diet_adherence, levels = c(0, 1), labels = c("no", "yes")),
       # Exercise
       exercise_intensity_pre = factor(exercise_intensity_pre,
-        levels = 0:3,
-        labels = c(NA, "low", "moderate", "high"),
-        ordered = TRUE
+                                      levels = 0:3,
+                                      labels = c(NA, "low", "moderate", "high"),
+                                      ordered = TRUE
       ),
       exercise_intensity_post = factor(exercise_intensity_post,
-        levels = 0:3,
-        labels = c(NA, "low", "moderate", "high"),
-        ordered = TRUE
+                                       levels = 0:3,
+                                       labels = c(NA, "low", "moderate", "high"),
+                                       ordered = TRUE
       ),
       exercise_duration_pre = factor(exercise_duration_pre,
-        levels = 0:3,
-        labels = c(NA, "15min", "30min", "60min"),
-        ordered = TRUE
+                                     levels = 0:3,
+                                     labels = c(NA, "15min", "30min", "60min"),
+                                     ordered = TRUE
       ),
       exercise_duration_post = factor(exercise_duration_post,
-        levels = 0:3,
-        labels = c(NA, "15min", "30min", "60min"),
-        ordered = TRUE
+                                      levels = 0:3,
+                                      labels = c(NA, "15min", "30min", "60min"),
+                                      ordered = TRUE
       ),
       exercise_adherence = factor(exercise_adherence, levels = c(0, 1), labels = c("no", "yes")),
-
+      
       # Barriers
       lim_time_food_prep = factor(lim_time_food_prep, levels = c(0, 1), labels = c("no", "yes")),
       lack_motivation = factor(lack_motivation, levels = c(0, 1), labels = c("no", "yes")),
       fast_food_delivery = factor(fast_food_delivery, levels = c(0, 1), labels = c("no", "yes")),
       home_load = factor(home_load, levels = c(0, 1), labels = c("no", "yes")),
       freq_social_interactions = factor(freq_social_interactions, levels = c(0, 1), labels = c("no", "yes"))
-    ) %>%
-    # Fix Hip impossible minimum values of 9.6 assume wrong dot placement
+    ) 
+}
+
+#### Function to prepare the data for BMI total effect estimation #### 
+prepare_data_bmi_total <- function(data_clean){
+  data_clean %>%
+    select(treatment, bmi_pre, bmi_post) %>%
+    # Center all the numerical variables 
     mutate(
-      hip_post = if_else(hip_post <= 10, hip_post * 10, hip_post)
+      bmi_pre  = bmi_pre - mean(bmi_pre)
     )
 }
+
+
