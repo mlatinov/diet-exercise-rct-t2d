@@ -2,27 +2,27 @@
 library(brms)
 
 bmi_total_model <- function(data) {
-  # Convert the factors to numeric
-  model_data <- data %>%
-    mutate(
-      treatment = as.numeric(treatment)
-    )
-
+  
   # Define formula
-  formula <- brmsformula(bmi_post ~ treatment + bmi_pre)
+  formula <- brmsformula(
+    bmi_post ~ treatment * bmi_pre, # set the target 
+    sigma    ~ treatment            # model sigma as f(treatment)
+  )
 
   # Define priors
   priors <- c(
-    prior(normal(30, 5), class = "Intercept"),
-    prior(normal(0, 3), class = "b", coef = "treatment"),
-    prior(normal(1, 0.5), class = "b", coef = "bmi_pre"),
-    prior(normal(0, 2), class = "sigma", lb = 0)
+    set_prior("normal(30, 5)",          class = "Intercept"),
+    set_prior("normal(0, 2)",           class = "b", coef = "treatment"),
+    set_prior("normal(1, 0.2)",         class = "b", coef = "bmi_pre"),
+    set_prior("normal(0, 0.3)",         class = "b", coef = "treatment:bmi_pre"),
+    set_prior("normal(log(2.5), 0.5)",  class = "Intercept", dpar = "sigma"),
+    set_prior("normal(0, 0.5)",         class = "b", coef = "treatment", dpar = "sigma")
   )
 
   # Fit the model
   model <- brm(
     formula = formula,
-    data = model_data,
+    data = data,
     family = gaussian(),
     prior = priors,
     chains = 4,
