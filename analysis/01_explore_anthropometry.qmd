@@ -40,7 +40,7 @@ library(ggstatsplot)
 library(ggthemes)
 source("R/eda_functions.R")
 # Load the cleaned data from the pipeline
-tar_load(data_clean)
+tar_load(data_eda)
 ```
 
 # Background
@@ -60,7 +60,7 @@ The questions this notebook answers:
 #| label: tbl-overview
 #| tbl-cap: "Sample size and treatment allocation."
 
-data_clean |>
+data_eda |>
   count(treatment) |>
   knitr::kable()
 ```
@@ -69,7 +69,7 @@ data_clean |>
 #| label: glimpse
 #| include: false
 
-glimpse(data_clean)
+glimpse(data_eda)
 ```
 
 # Univariate distributions
@@ -80,7 +80,7 @@ The control arm provides our reference for what happens in the absence of the in
 
 ```{r}
 # Subset the data to contain only the control arm 
-control_arm <- data_clean %>% filter(treatment == "control")
+control_arm <- data_eda %>% filter(treatment == "control")
 
 # Plot the Control arm Post Treatment
 bmi_post_dist <- ggplot(data = control_arm, aes(x = bmi_post ))+
@@ -114,7 +114,7 @@ Both arms show right-skewed BMI distributions centered around 30, with substanti
 
 ```{r}
 marginal_distribution(
-  data_clean = data_clean,
+  data_clean = data_eda,
   x = bmi_pre,
   title = "Pre-Intervention BMI distribution and arm comparison"
 )
@@ -126,7 +126,7 @@ The intervention arm has shifted visibly leftward relative to the control arm, w
 
 ```{r}
 marginal_distribution(
-  data_clean = data_clean,
+  data_clean = data_eda,
   x = bmi_post,
   title = "Post-Intervention BMI distribution and arm comparison"
 )
@@ -140,7 +140,7 @@ Weight shows the same pattern as BMI, which is mechanically expected: with heigh
 
 ```{r}
 marginal_distribution(
-  data_clean = data_clean,
+  data_clean = data_eda,
   x  = weight_post,
   title = "Post-Intervention Weight Comparison Between Arms"
 )
@@ -149,7 +149,7 @@ marginal_distribution(
 
 ```{r}
 # Subset the data to include only the intervention arm 
-intervention_data <- data_clean %>% 
+intervention_data <- data_eda %>% 
   filter(treatment == "intervention")
 
 # Reshape the data
@@ -180,7 +180,7 @@ Within the intervention arm, comparing pre to post weight shows the within-arm c
 
 ```{r}
 marginal_distribution(
-  data_clean = data_clean,
+  data_clean = data_eda,
   x = waist_post,
   title = "Comparison Waist Post-Intervention Arm"
 )
@@ -193,7 +193,7 @@ The intervention arm's hip distribution is more concentrated than the control's 
 
 ```{r}
 marginal_distribution(
-  data_clean = data_clean,
+  data_clean = data_eda,
   x = hip_post,
   title = "Comparison Hip Pre and Post-Intervention Arm"
 )
@@ -208,7 +208,7 @@ Weight pre vs post: A clean linear relationship with high correlation in both ar
 
 ```{r}
 scatter_pre_post(
-  data_clean = data_clean,x = weight_pre,y = weight_post)
+  data_clean = data_eda,x = weight_pre,y = weight_post)
 ```
 
 ## Relationships BMI Pre vs BMI Post-Intervention
@@ -216,7 +216,7 @@ scatter_pre_post(
 BMI pre vs post: As expected, mirrors the weight relationship. Tight correlation, more downside spread in the intervention arm. The clean linearity in both arms also tells us a single linear ANCOVA term for bmi_pre should be sufficient — no need for spline terms or interaction with treatment.
 
 ```{r}
-scatter_pre_post(data = data_clean, x = bmi_pre, y = bmi_post)
+scatter_pre_post(data = data_eda, x = bmi_pre, y = bmi_post)
 ```
 
 ## Relationships Waist Pre vs Waist Post-Intervention
@@ -225,13 +225,13 @@ Waist pre vs post: Linear relationship persists but with the clustered structure
 
 ```{r}
 scatter_pre_post(
-  data_clean = data_clean, x = waist_pre, y = waist_post)
+  data_clean = data_eda, x = waist_pre, y = waist_post)
 ```
 
 
 ## Relationships Hip Pre vs Hip Post-Intervention
 ```{r}
-scatter_pre_post(data_clean = data_clean, x = hip_pre, y = hip_post)
+scatter_pre_post(data_clean = data_eda, x = hip_pre, y = hip_post)
 ```
 
 Hip pre vs post: Similar to waist, with even tighter pre-post coupling. Hip changes are small relative to its baseline, which again tells us hip is more structural than the other measurements.
@@ -244,14 +244,14 @@ Hip pre vs post: Similar to waist, with even tighter pre-post coupling. Hip chan
 BMI vs waist (baseline): Positive but moderate relationship. Both measure adiposity but differently — BMI is whole-body mass relative to height, waist is central adiposity. The moderate (rather than tight) correlation is consistent with patients who have similar BMI but different fat distributions. For modeling, this means including only bmi_pre (not waist_pre) in the BMI equation is fine; they're not redundant predictors but they're also not strongly competing.
 
 ```{r}
-scatter_pre_post(data_clean = data_clean, x = waist_pre, y = bmi_pre)
+scatter_pre_post(data_clean = data_eda, x = waist_pre, y = bmi_pre)
 ```
 
 ### Pre-Intervention BMI Vs Pre-Intervention Hip
 
 BMI vs hip (baseline): Similar moderate relationship; same reasoning.
 ```{r}
-scatter_pre_post(data_clean = data_clean, x = hip_pre, y = bmi_pre)
+scatter_pre_post(data_clean = data_eda, x = hip_pre, y = bmi_pre)
 ```
 
 ### Pre-Intervention Waist Vs Pre-Intervention Hip
@@ -259,7 +259,7 @@ scatter_pre_post(data_clean = data_clean, x = hip_pre, y = bmi_pre)
 Weaker than I'd expect. This might be because in this T2D population, central adiposity (waist) varies more than lower-body adiposity (hip), partially decoupling them.
 
 ```{r}
-scatter_pre_post(data_clean = data_clean, x = hip_pre, y = waist_pre)
+scatter_pre_post(data_clean = data_eda, x = hip_pre, y = waist_pre)
 ```
 
 ### Pre-Intervention Weight Vs Pre-Intervention Waist
@@ -268,7 +268,7 @@ Weight vs waist (baseline): Strong linear relationship — heavier patients have
 
 ```{r}
 scatter_pre_post(
-  data_clean = data_clean, x = waist_pre, y = weight_pre)
+  data_clean = data_eda, x = waist_pre, y = weight_pre)
 ```
 
 ## Pairwise relationships between post values
@@ -276,25 +276,25 @@ scatter_pre_post(
 ### Post-Intervention BMI Vs Post-Intervention Waist
 ```{r}
 scatter_pre_post(
-  data_clean = data_clean, x = waist_post, y = bmi_post)
+  data_clean = data_eda, x = waist_post, y = bmi_post)
 ```
 We observe weak positive relantionship and cluster structure more disctinct in the control Post-Intervention Arm
 
 ### Post-Intervention BMI Vs Post-Intervention Hip
 
 ```{r}
-scatter_pre_post(data_clean = data_clean, x = hip_pre, y = bmi_pre)
+scatter_pre_post(data_clean = data_eda, x = hip_pre, y = bmi_pre)
 ```
 
 ### Post-Intervention Waist Vs Post-Intervention Hip
 ```{r}
-scatter_pre_post(data_clean = data_clean, x = hip_pre, y = waist_pre)
+scatter_pre_post(data_clean = data_eda, x = hip_pre, y = waist_pre)
 ```
 
 ### Post-Intervention Weight Vs Post-Intervention Waist
 ```{r}
 scatter_pre_post(
-  data_clean = data_clean, x = waist_pre, y = weight_pre)
+  data_clean = data_eda, x = waist_pre, y = weight_pre)
 ```
 
 The post-intervention pairwise relationships look very similar to the baseline pairwise relationships in shape and direction. This is good news: the intervention is shifting locations without distorting the natural co-variation among anthropometric measurements. If we'd seen, say, the BMI–waist relationship break down post-intervention, that would suggest the intervention is doing something biologically odd — preferentially reshaping one dimension without the others. We don't see that. The intervention looks like a coordinated reduction across the whole anthropometric profile.
@@ -303,7 +303,7 @@ The post-intervention pairwise relationships look very similar to the baseline p
 
 ```{r}
 # Add the delta scores to the clean data 
-delta_clean <- compule_delta_anthropometrics(data_clean)
+delta_clean <- compule_delta_anthropometrics(data_eda)
 ```
 
 ### Delta BMI VS Delta Waist
