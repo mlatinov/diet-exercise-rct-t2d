@@ -1,0 +1,743 @@
+---
+title: "Anthropometric outcomes — BMI Analysis"
+subtitle: "Family 1: BMI "
+author: "Your name"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: true
+    code-tools: true
+    theme: cosmo
+    fig-width: 8
+    fig-height: 5
+    fig-cap-location: bottom
+execute:
+  echo: true
+  warning: false
+  message: false
+  cache: false
+knitr:
+  opts_chunk:
+    fig.align: center
+---
+
+```{r}
+#| label: diagnose
+#| include: true
+
+cat("Working directory:", getwd(), "\n")
+cat("_targets dir exists:", dir.exists("_targets"), "\n")
+cat("_targets.R exists:", file.exists("_targets.R"), "\n")
+cat("Files here:", paste(head(list.files()), collapse = ", "), "\n")
+
+# Libraries 
+library(targets)
+library(tidyverse)
+library(patchwork)
+library(ggthemes)
+library(bayesplot)
+library(posterior)
+library(SBC)
+library(priorsense)
+library(marginaleffects)
+
+# Functions 
+source("R/causal_estimates.R")
+
+# Load the cleaned data from the pipeline and models 
+tar_load(bmi_total_effect_data)
+tar_load(recovery_bmi_total)
+tar_load(bmi_total_effect)
+tar_load(bmi_total_effect_prior)
+tar_load(bmi_total_effect_sbc)
+
+```
+
+## General model structure
+
+The analysis estimates the causal effect of the PIP intervention on post-intervention BMI using a Bayesian distributional regression model. Two estimands are considered:
+
+1.  **Total effect**: the unmediated causal effect of treatment on post-BMI, adjusting only for baseline BMI to improve precision.
+
+2.  **Direct effect**: the effect of treatment on post-BMI not mediated through changes in adjustment-set variables, here $\{\text{BMIPre}, \text{Height}, \text{WtPost}\}$.
+
+This document focuses on the **total effect model**.
+
+------------------------------------------------------------------------
+
+## Likelihood and linear predictors
+
+The outcome $Y_i$ (post-intervention BMI for patient $i$) is modeled as Gaussian with a treatment-dependent residual standard deviation:
+
+$$
+Y_i \mid \mu_i, \sigma_i \sim \mathcal{N}(\mu_i, \sigma_i^2)
+$$
+
+The mean structure includes a treatment-by-baseline-BMI interaction, allowing the treatment effect to vary with baseline BMI:
+
+$$
+\mu_i =
+\beta_0 +
+\beta_{\text{trt}} T_i +
+\beta_{\text{pre}} X_i +
+\beta_{\text{trt:pre}} T_i X_i
+$$
+
+The residual standard deviation depends on treatment via a log link to ensure positivity:
+
+$$
+\log(\sigma_i) =
+\gamma_0 +
+\gamma_{\text{trt}} T_i
+$$
+
+where:
+
+-   $T_i \in \{0,1\}$ is the treatment indicator
+-   $X_i$ is baseline BMI
+
+------------------------------------------------------------------------
+
+## Priors
+
+Priors were chosen to be weakly informative on the scale of BMI.
+
+| Parameter | Prior | Rationale |
+|------------------------|------------------------|------------------------|
+| $\beta_0$ | $\mathcal{N}(30, 5)$ | BMI for an untreated participant at $X = 0$; centered on the population average |
+| $\beta_{\text{trt}}$ | $\mathcal{N}(0, 2)$ | Treatment effect at $X = 0$; permissive around no effect |
+| $\beta_{\text{pre}}$ | $\mathcal{N}(1, 0.2)$ | Baseline-to-post tracking; centered at 1 reflecting near 1:1 carryover |
+| $\beta_{\text{trt:pre}}$ | $\mathcal{N}(0, 0.3)$ | Effect modification by baseline BMI; tight around zero |
+| $\gamma_0$ | $\mathcal{N}(\log 2.5, 0.5)$ | Residual SD of approximately 2.5 BMI units on the log scale |
+| $\gamma_{\text{trt}}$ | $\mathcal{N}(0, 0.5)$ | Ratio of treated/control SDs centered at 1 (no difference) |
+
+------------------------------------------------------------------------
+
+## Causal interpretation
+
+Under the assumption that treatment was randomized conditional on baseline BMI, the average treatment effect (ATE) is identified as:
+
+$$
+\text{ATE}
+=
+\mathbb{E}_X
+\left[
+\mu(T = 1, X) -
+\mu(T = 0, X)
+\right]
+$$
+
+This is computed via **g-computation**:
+
+1.  Predict each observation's outcome under treatment: $$
+    \mu(T=1, X_i)
+    $$
+
+2.  Predict each observation's outcome under control: $$
+    \mu(T=0, X_i)
+    $$
+
+3.  Compute the individual contrast: $$
+    \mu(T=1, X_i) - \mu(T=0, X_i)
+    $$
+
+4.  Average across the observed distribution of baseline BMI: $$
+    \text{ATE}
+    =
+    \frac{1}{N}
+    \sum_{i=1}^{N}
+    \left[
+    \mu(T=1, X_i) -
+    \mu(T=0, X_i)
+    \right]
+    $$
+
+# Prior Predictive Checks
+
+The prior predictive distribution shows what bmi_post values the model considers plausible before seeing data.
+
+```{r}
+# Density overlay
+dens_pp_prior_checks <- pp_check(
+  bmi_total_effect_prior,
+  type = "dens_overlay"
+) +
+  labs(
+    title = "Prior Predictive Distribution",
+    subtitle = "Simulated BMI outcomes generated from the prior model",
+    x = "Post-intervention BMI",
+    y = "Density"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    panel.grid.minor = element_blank()
+  )
+
+# Intervals 
+intervals_pp_prior_checks <- pp_check(
+  bmi_total_effect_prior,
+  type = "intervals"
+) +
+  labs(
+    title = "Prior Predictive Intervals",
+    subtitle = "Observed outcomes compared with uncertainty implied by the priors",
+    x = "Post-intervention BMI"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    panel.grid.minor = element_blank()
+  )
+
+# Combine 
+intervals_pp_prior_checks /
+dens_pp_prior_checks +
+  plot_annotation(
+    title = "Prior Predictive Checks for the Total Effect Model",
+    subtitle = "Assessing whether the priors generate plausible BMI values before observing data",
+    theme = theme(
+      plot.title = element_text(
+        size = 16,
+        face = "bold",
+        hjust = 0.5
+      ),
+      plot.subtitle = element_text(
+        hjust = 0.5
+      )
+    )
+  )
+```
+
+We can see that Prior Predictive Simulations from the model priors does not produce absolutly impossible values they are kept intentually wide to keep the model flexible and in the same time reprodusing the observed data resonably well
+
+# Real-data fit: MCMC diagnostics
+
+The MCMC Diagnostics have the mission to point us to problems with the model in stading from the troubles with MCMC algoritm
+
+## Trace Plots
+
+Trace plots show MCMC chain mixing for each parameter. Well-mixed chains look like horizontal "fuzzy caterpillars" with chains overlapping rather than separating.As we can see our chains are well mixed and converged
+
+```{r}
+theme_set(theme_minimal(base_size = 12))
+
+# Mean model parameters
+trace_plots_means <- mcmc_trace(
+  bmi_total_effect,
+  pars = c(
+    "b_Intercept",
+    "b_treatment",
+    "b_bmi_pre"
+  ),
+  n_warmup = 0
+) +
+  labs(
+    title = "Mean Model Parameters",
+    x = "Iteration",
+    y = NULL
+  ) +
+  theme(
+    plot.title = element_text(
+      face = "bold",
+      hjust = 0.5,
+      size = 13
+    ),
+    legend.position = "none",
+    panel.grid.minor = element_blank()
+  )
+
+# Sigma model parameters
+trace_plots_sigma <- mcmc_trace(
+  bmi_total_effect,
+  pars = c(
+    "Intercept_sigma",
+    "b_sigma_treatment",
+    "b_treatment:bmi_pre"
+  ),
+  n_warmup = 0
+) +
+  labs(
+    title = "Variance Model Parameters",
+    x = "Iteration",
+    y = NULL
+  ) +
+  theme(
+    plot.title = element_text(
+      face = "bold",
+      hjust = 0.5,
+      size = 13
+    ),
+    legend.position = "none",
+    panel.grid.minor = element_blank()
+  )
+
+# Combine
+trace_plots_means /
+trace_plots_sigma +
+  plot_annotation(
+    title = "MCMC Trace Plots",
+    theme = theme(
+      plot.title = element_text(
+        size = 16,
+        face = "bold",
+        hjust = 0.5
+      )
+    )
+  )
+```
+
+## Parameter recovery
+
+A simulation study was conducted to evaluate whether the Bayesian distributional regression model could recover known parameter values from data generated under the same model structure.
+
+The simulation mimics the original study design and assesses whether posterior estimates are centered near the true data-generating values.
+
+------------------------------------------------------------------------
+
+## Simulation parameters
+
+| Parameter | True value | Role |
+|------------------------|------------------------|------------------------|
+| $n$ | 200 | Sample size (matching the study design) |
+| $\beta_0$ | 0 | Intercept |
+| $\beta_{\text{trt}}$ | -2 | Treatment reduces post-intervention BMI by approximately 2 units |
+| $\beta_{\text{pre}}$ | 0.95 | Strong but imperfect baseline BMI tracking |
+| $\beta_{\text{trt:pre}}$ | 0.3 | Treatment effect attenuates at higher baseline BMI |
+| $\gamma_0$ | $\log(3)$ | Residual SD approximately equal to 3 BMI units |
+| $\gamma_{\text{trt}}$ | 0 | No treatment-specific difference in residual variability |
+| $p_{\text{trt}}$ | 0.5 | Balanced treatment assignment probability |
+
+------------------------------------------------------------------------
+
+## Recovery analysis
+
+Posterior summaries from the fitted recovery model were compared against the true simulation values to assess parameter identifiability and estimation accuracy.
+
+------------------------------------------------------------------------
+
+## Recovery summary table
+
+```{r}
+library(tibble)
+library(knitr)
+
+# True simulation values
+true_values <- tibble(
+  Parameter = c(
+    "Intercept",
+    "treatment",
+    "bmi_pre",
+    "treatment:bmi_pre",
+    "sigma_Intercept",
+    "sigma_treatment"
+  ),
+  True_Value = c(
+    0,
+    -2,
+    0.95,
+    0.3,
+    log(3),
+    0
+  )
+)
+
+# Posterior summaries
+posterior_summary <- as.data.frame(
+  summary(recovery_bmi_total)$fixed
+) %>%
+  rownames_to_column("Parameter") %>%
+  select(
+    Parameter,
+    Estimate,
+    Est.Error,
+    `l-95% CI`,
+    `u-95% CI`
+  )
+
+# Merge true + estimated values
+recovery_table <- left_join(
+  true_values,
+  posterior_summary,
+  by = "Parameter"
+)
+
+# Display table
+kable(
+  recovery_table,
+  digits = 2,
+  caption = "Parameter recovery results for the Bayesian total effect model"
+)
+```
+
+------------------------------------------------------------------------
+
+## Interpretation
+
+Successful parameter recovery is indicated when:
+
+-   posterior means are close to the true generating values
+-   credible intervals contain the true parameter values
+-   uncertainty remains reasonably bounded
+-   no major systematic bias appears across parameters
+
+
+# Simulation Based Calibrarion
+SBC tests whether the model's posterior is calibrated across the full prior: across many simulated datasets, the rank of each true parameter within its posterior draws should be uniformly distributed. Non-uniform ranks indicate that the inference machinery is producing systematically biased or miscalibrated posteriors.
+
+## Rank Histogram
+
+```{r}
+color_scheme_set("red")
+plot_rank_hist(bmi_total_effect_sbc) +
+  labs(
+    title = "Simulation-Based Calibration",
+    subtitle = "Rank histograms assessing posterior calibration",
+    x = "Rank statistic",
+    y = "Frequency"
+  )+
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(
+      face = "bold",
+      hjust = 0.5,
+      size = 16
+    ),
+    plot.subtitle = element_text(
+      hjust = 0.5,
+      size = 11
+    ),
+    panel.grid.minor = element_blank(),
+    legend.position = "none"
+  )
+
+```
+Uniform bars indicate a calibrated posterior.
+∪-shape: posterior too narrow (overconfident).
+∩-shape: posterior too wide (underconfident).
+Left/right skew: posterior biased low/high.
+Approximately flat: well-calibrated.
+
+## ECDF difference plot
+This is a stricter version of the rank histogram check, with simultaneous confidence bands. The blue line should stay inside the gray band for each parameter. All parameters' ECDFs stayed within their confidence bands
+```{r}
+plot_ecdf_diff(bmi_total_effect_sbc) +
+  labs(
+    title = "ECDF Difference Plot",
+    subtitle = "Simulation-based calibration diagnostic of posterior ranks",
+    x = "Rank statistic",
+    y = "ECDF difference"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(
+      face = "bold",
+      hjust = 0.5,
+      size = 16
+    ),
+    plot.subtitle = element_text(
+      hjust = 0.5,
+      size = 11
+    ),
+    panel.grid.minor = element_blank(),
+    legend.position = "none"
+  )
+```
+
+## Coverage of central credible intervals
+This plot shows observed coverage of central credible intervals against nominal (expected) coverage. A well-calibrated model produces points along the diagonal. 
+```{r}
+plot_coverage(bmi_total_effect_sbc) +
+  labs(
+    title = "Coverage Diagnostics",
+    subtitle = "Simulation-based calibration: checking nominal vs empirical coverage",
+    x = "Parameter",
+    y = "Coverage probability"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(
+      face = "bold",
+      hjust = 0.5,
+      size = 16
+    ),
+    plot.subtitle = element_text(
+      hjust = 0.5,
+      size = 11
+    ),
+    axis.text.x = element_text(angle = 30, hjust = 1),
+    panel.grid.minor = element_blank(),
+    legend.position = "none"
+  )
+```
+
+# Prior Sensitivity Analysis
+Power-scaling sensitivity (Kallioinen et al., 2024) quantifies how much the posterior would change if priors were tightened or loosened. Substantial sensitivity to small prior changes flags conclusions that are prior-driven rather than data-driven.
+```{r}
+sens_1 <- powerscale_plot_dens(bmi_total_effect)
+sens_1_plot_2 <- sens_1[2]
+sens_1_plot_2
+```
+
+# Posterior Checks
+Posterior predictive checks compare the observed data to data simulated from the posterior predictive distribution. Failures indicate that the model can't reproduce features of the real data, which can bias inference and uncertainty quantification.
+
+## Distribution shape
+Density and ECDF overlays compare the observed bmi_post distribution (dark) to many posterior predictive replicates (light). The predictive distributions track the observed distribution across the full range
+
+```{r}
+theme_set(theme_minimal(base_size = 12))
+
+# Density overlay
+dens <- pp_check(
+  bmi_total_effect,
+  type = "dens_overlay"
+) +
+  labs(
+    title = "Posterior Predictive Density Check",
+    subtitle = "Observed vs model-simulated BMI distributions",
+    x = "Post-intervention BMI",
+    y = "Density"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 11),
+    panel.grid.minor = element_blank()
+  )
+
+# ECDF overlay
+ecdf <- pp_check(
+  bmi_total_effect,
+  type = "ecdf_overlay"
+) +
+  labs(
+    title = "Posterior Predictive ECDF Check",
+    subtitle = "Comparing cumulative distributions of observed vs simulated data",
+    x = "Post-intervention BMI",
+    y = "ECDF"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 11),
+    panel.grid.minor = element_blank()
+  )
+
+# Combine
+dens / ecdf
+```
+
+## Joint mean–SD check
+This checks whether the model can reproduce the observed mean and SD jointly
+```{r}
+pp_check(
+  bmi_total_effect,
+  type = "stat_2d",
+  stat = c("mean", "sd")
+) +
+  labs(
+    title = "Posterior Predictive Check (Mean vs SD)",
+    subtitle = "Comparing observed vs simulated summary statistics",
+    x = "Mean",
+    y = "Standard deviation"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 11),
+    panel.grid.minor = element_blank()
+  )
+```
+
+## Group-wise
+These plots check whether the model reproduces summary statistics within each treatment group — a stricter check than the marginal version.
+```{r}
+theme_set(theme_minimal(base_size = 12))
+
+# Group means
+group_mean <- pp_check(
+  bmi_total_effect,
+  type  = "stat_grouped",
+  stat  = "mean",
+  group = "treatment"
+) +
+  labs(
+    title = "Group-wise Mean Check",
+    subtitle = "Observed vs posterior predictive means by treatment group",
+    x = "Treatment group",
+    y = "Mean BMI"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 11),
+    panel.grid.minor = element_blank()
+  )
+
+# Group standard deviations
+group_sd <- pp_check(
+  bmi_total_effect,
+  type = "stat_grouped",
+  stat = "sd",
+  group = "treatment"
+) +
+  labs(
+    title = "Group-wise Variability Check",
+    subtitle = "Observed vs posterior predictive standard deviations by treatment group",
+    x = "Treatment group",
+    y = "SD of BMI"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 11),
+    panel.grid.minor = element_blank()
+  )
+
+# Combine
+group_mean / group_sd
+
+```
+
+The intervals plot shows whether predictive intervals contain observed values appropriately across the range of bmi_pre. The error scatter plot reveals systematic residual patterns.
+
+```{r}
+theme_set(theme_minimal(base_size = 12))
+
+# Interval check
+intervals <- pp_check(
+  bmi_total_effect,
+  type = "intervals",
+  x = "bmi_pre"
+) +
+  labs(
+    title = "Posterior Predictive Intervals",
+    subtitle = "Uncertainty in post-BMI across baseline BMI",
+    x = "Baseline BMI (bmi_pre)",
+    y = "Post-BMI"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 11),
+    panel.grid.minor = element_blank()
+  )
+
+# Error scatter
+scatter_error <- pp_check(
+  bmi_total_effect,
+  type = "error_scatter_avg_vs_x",
+  x = "bmi_pre"
+) +
+  labs(
+    title = "Model Error vs Baseline BMI",
+    subtitle = "Average prediction error across bmi_pre",
+    x = "Baseline BMI (bmi_pre)",
+    y = "Average prediction error"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 11),
+    panel.grid.minor = element_blank()
+  )
+
+# Combine
+intervals / scatter_error
+```
+
+## LOO-PIT acid test
+LOO-PIT is the most stringent calibration check: each observation's leave-one-out predictive PIT value should be uniformly distributed if the model is well-calibrated. The Q-Q plot compares the empirical distribution to uniform. 
+
+```{r}
+# Add LOO criterion
+acid_model <- brms::add_criterion(bmi_total_effect, "loo")
+
+# LOO-PIT QQ plot
+pp_check(acid_model, type = "loo_pit_qq") +
+  labs(
+    title = "LOO-PIT Diagnostic",
+    subtitle = "Checking overall model calibration via leave-one-out predictive ranks",
+    x = "Theoretical uniform quantiles",
+    y = "Empirical LOO-PIT quantiles"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 11),
+    panel.grid.minor = element_blank()
+  )
+```
+
+# Causal Estimates
+
+```{r}
+# Transform the data to compute causal estimands
+causal_data <- extract_effect(
+  data = bmi_total_effect_data,
+  model = bmi_total_effect
+)
+```
+
+## Posterior of the conditional treatment coefficient
+This is the posterior of βtrt\beta_\text{trt}
+βtrt​ — the treatment effect *at X=0X = 0
+X=0* in the interaction model. **It is not the average treatment effect** and shouldn't be interpreted as such in the presence of the interaction.
+```{r}
+mcmc_hist(bmi_total_effect, pars = c("b_treatment"))
+```
+
+## Posterior Distribution of the Average Treatment Effect
+This is the population-average treatment effect, marginalizing over the observed distribution of bmi_pre. Computed via g-computation:
+
+```{r}
+plot_ate_posterior(
+  ate_draws     = causal_data$ate_draws,
+  outcome_label = "Post-Intervention BMI",
+  effect_color = "red4"
+)
+
+```
+
+## Counterfactual marginal means
+These are the average outcomes under each treatment arm, computed by predicting every observation as if treated and as if untreated, then averaging.
+```{r}
+plot_counterfactual_means(
+  pred_draws = causal_data$prediction_draws,
+  outcome_label = "Post-Intervention BMI",
+  effect_color  = "red4"
+)
+```
+
+## Conditional average treatment effect (CATE)
+This plot shows how the treatment effect varies with baseline BMI — the substantively interesting consequence of the interaction term. 
+
+```{r}
+plot_predictions(
+  model = bmi_total_effect,
+  condition = c("bmi_pre", "treatment")
+) +
+  labs(
+    title = "Model Predictions",
+    subtitle = "Predicted post-BMI across baseline BMI and treatment groups",
+    x = "Baseline BMI (bmi_pre)",
+    y = "Predicted post-BMI"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 11),
+    panel.grid.minor = element_blank(),
+    legend.title = element_blank(),
+    legend.position = "bottom"
+  )
+```
+
+## Threshold Curve
+Rather than asking "is the effect statistically different from zero", this plot answers "what is the probability the treatment effect is at least as large (in the favorable direction) as cc
+c?" — for every threshold cc
+c. The intersection with the 0.95 horizontal line shows the largest effect we can claim with 95% certainty.
+```{r}
+plot_threshold_curve(
+  ate_draws     = causal_data$ate_draws,
+  outcome_label = "Post-Intervention BMI"
+)
+```
