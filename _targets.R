@@ -1,5 +1,6 @@
 #### Workflow Orchestration by Targets =======================================================================
 library(targets)
+library(tarchetypes)
 library(tidyverse)
 
 #### Source Function ####
@@ -20,9 +21,28 @@ list(
     name = data_clean,
     command = clean_data_raw(data_raw)
   ),
-
+  
+  ## Exploratory Data Analysis =================================================
+  
+  # Prepare the data for EDA 
+  tar_target(
+    name = data_eda,
+    command = prepare_data_eda(data_clean)
+  ),
+  # Explore the Antropometrics 
+  tar_quarto(
+    name = antropometrics_report,
+    path = "analysis/01_explore_anthropometry.qmd",
+    quiet = TRUE
+  ),
+  
   ## Total effect of PIP on post-intervention BMI ==============================
   
+  ## Prepare the data 
+  tar_target(
+    name = bmi_total_effect_data,
+    command = prepare_data_bmi_total(data_clean)
+  ),
   # Generative Model for Param Recovery
   tar_target(
     name = gen_bmi_total,
@@ -31,21 +51,37 @@ list(
   # Recovery Model 
   tar_target(
     name = recovery_bmi_total,
-    command = bmi_total_model(gen_bmi_total) 
+    command = bmi_total_model(gen_bmi_total),
+    memory = "transient",
+    garbage_collection = TRUE
   ),
   # BMI Total Effect Model 
   tar_target(
     name = bmi_total_effect,
-    command = bmi_total_model(data_clean) 
+    command = bmi_total_model(bmi_total_effect_data),
+    memory = "transient",
+    garbage_collection = TRUE
   ),
   # Prior BMI Total effect model
   tar_target(
     name = bmi_total_effect_prior,
-    command = update(bmi_total_effect, sample_prior = "only") 
+    command = update(bmi_total_effect, sample_prior = "only"),
+    memory = "transient",
+    garbage_collection = TRUE
   ),
   # Simulation Based Calibration 
   tar_target(
     name = bmi_total_effect_sbc,
-    command = sbc_bmi_total(data_clean)
+    command = sbc_bmi_total(bmi_total_effect_data),
+    memory = "transient",
+    garbage_collection = TRUE
+  ),
+  # Final Report on the BMI Total Effect 
+  tar_quarto(
+    name = bmi_total_effect_report,
+    path = "reports/treatment_bmi_effect.qmd",
+    quiet = TRUE
   )
+  
+  ## BMI Direct Effect Model of PIP post intervention BMI ======================
 )
