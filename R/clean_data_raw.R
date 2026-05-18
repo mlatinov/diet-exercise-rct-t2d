@@ -133,4 +133,25 @@ prepare_data_bmi_total <- function(data_clean){
     )
 }
 
+#### Function to prepare the data for BMI Direct Effect Estimation ####
+prepare_data_bmi_direct <- function(data_clean){
+  data_clean %>%
+    select(treatment, bmi_pre, height_pre, weight_post)
+}
+
+#### Function to prepare the data for the Anthropometric model ####
+prepare_anthropometric_data <- function(data_clean){
+  data_clean %>%
+    select(
+      treatment,
+      bmi_pre, waist_pre, hip_pre,
+      bmi_post,waist_post, hip_post
+    ) %>%
+    mutate(
+      bmi_pre   = bmi_pre - mean(bmi_pre),
+      waist_pre = waist_pre - mean(waist_pre),
+      hip_pre   = hip_pre - mean(hip_pre) 
+    )
+}
+
 
