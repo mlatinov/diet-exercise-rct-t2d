@@ -81,7 +81,40 @@ list(
     name = bmi_total_effect_report,
     path = "reports/treatment_bmi_effect.qmd",
     quiet = TRUE
+  ),
+  #### Anthropometric outcomes, joint multivariate model ####
+  tar_target(
+    name = anthropometric_data,
+    command = prepare_anthropometric_data(data_clean)
+  ),
+  tar_target(
+    name = gen_anthropometric,
+    command = dgp_anthropometric(n = 200)
+  ),
+  tar_target(
+    name = anthropometric_recovery,
+    command = anthropometric_model(gen_anthropometric)
+  ),
+  tar_target(
+    name = anthropometric_effect,
+    command = anthropometric_model(anthropometric_data)
+  ),
+  tar_target(
+    name = anthropometric_priors,
+    command = update(anthropometric_effect, sample_prior = "only")
+  ),
+  tar_target(
+    name = anthropometric_sbc,
+    command = sbc_anthropometric_model(anthropometric_data)
+  ),
+  tar_quarto(
+    name = anthropometric_report,
+    path = "reports/anthropometric_report.qmd"
+  ),
+  ####  Mediated effect through behavioral latent ####
+  ## CFA analysis on the behaviour indicators
+  tar_target(
+    name = gen_cfa_behaviour,
+    command = dgp_cfa_behaviour(n = 200)
   )
-  
-  ## BMI Direct Effect Model of PIP post intervention BMI ======================
 )
