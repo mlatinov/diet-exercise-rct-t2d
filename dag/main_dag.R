@@ -195,5 +195,5 @@ WtPost -> WaistPost
 WaistPost -> HipPost
 }
 ')
-adjustmentSets(dag, exposure = "PIP", outcome = "BMIPost", effect = "total")
-adjustmentSets(dag, exposure = "PIP", outcome = "BMIPost", effect = "direct")
+adjustmentSets(dag, exposure = "PIP", outcome = "HipPre", effect = "total")
+adjustmentSets(dag, exposure = "PIP", outcome = "HipPre", effect = "direct")
