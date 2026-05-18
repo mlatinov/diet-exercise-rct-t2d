@@ -1,0 +1,55 @@
+---
+title: "Anthropometric report — BMI Analysis"
+subtitle: "Family 1: BMI "
+author: "Your name"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: true
+    code-tools: true
+    theme: cosmo
+    fig-width: 8
+    fig-height: 5
+    fig-cap-location: bottom
+execute:
+  echo: true
+  warning: false
+  message: false
+  cache: false
+knitr:
+  opts_chunk:
+    fig.align: center
+---
+```{r}
+#| label: diagnose
+#| include: true
+
+cat("Working directory:", getwd(), "\n")
+cat("_targets dir exists:", dir.exists("_targets"), "\n")
+cat("_targets.R exists:", file.exists("_targets.R"), "\n")
+cat("Files here:", paste(head(list.files()), collapse = ", "), "\n")
+
+# Libraries 
+library(targets)
+library(tidyverse)
+library(patchwork)
+library(ggthemes)
+library(bayesplot)
+library(posterior)
+library(SBC)
+library(priorsense)
+library(marginaleffects)
+
+# Functions 
+source("R/causal_estimates.R")
+
+# Load the cleaned data from the pipeline and models 
+tar_load(anthropometric_data)
+tar_load(anthropometric_recovery)
+tar_load(anthropometric_effect)
+tar_load(anthropometric_priors)
+tar_load(anthropometric_sbc)
+```
