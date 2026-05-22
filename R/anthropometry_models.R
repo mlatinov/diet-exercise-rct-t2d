@@ -80,3 +80,29 @@ anthropometric_model <- function(data) {
   )
   return(joint_model)
 }
+
+####  Confirmatory factor analysis on the behaviour indicators ####
+cfa_behaviour_model <- function(Y){
+
+  # Get the model
+  model <- cmdstan_model("Stan/cfa_behaviour.stan")
+
+  # Fit the model 
+  fit <- model$sample(
+    data = list(
+      N = nrow(Y$cont_data), 
+      J_cont = ncol(Y$cont_data), 
+      Y_cont = Y$cont_data,
+      J_bin  = ncol(Y$bin_data),
+      Y_bin  = Y$bin_data
+    ),
+    output_dir = "stan_results/",
+    chains = 4,
+    adapt_delta = 0.99,
+    iter_sampling = 3000,
+    seed = 42 
+  )
+
+  # Return the fitted model 
+  return(fit)
+}
