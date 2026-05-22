@@ -2,6 +2,7 @@
 library(targets)
 library(tarchetypes)
 library(tidyverse)
+library(cmdstanr)
 
 #### Source Function ####
 tar_source("R/clean_data_raw.R")
@@ -115,6 +116,20 @@ list(
   ## CFA analysis on the behaviour indicators
   tar_target(
     name = gen_cfa_behaviour,
-    command = dgp_cfa_behaviour(n = 200)
+    command = dgp_cfa_behaviour2(n = 200)
+  ),
+  tar_target(
+    name = cfa_data_behaviour_data,
+    command = prepare_cfa_behaviour_data(data_clean)
+  ),
+  tar_target(
+    name = cfa_behaviour_recovery,
+    command = cfa_behaviour_model(gen_cfa_behaviour$data)
+  ),
+  tar_target(
+    name = cfa_behaviour,
+    command = cfa_behaviour_model(cfa_data_behaviour_data)
   )
 )
+
+
