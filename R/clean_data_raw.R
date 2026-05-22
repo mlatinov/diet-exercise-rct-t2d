@@ -77,7 +77,9 @@ clean_data_raw <- function(data_raw) {
     # Fix Hip impossible minimum values of 9.6 assume wrong dot placement
     mutate(
       hip_post = if_else(hip_post <= 10, hip_post * 10, hip_post)
-    )
+    ) %>%
+    # Drop the Nas 
+    drop_na()
 }
 
 #### Function to preparare the data for Exploratory analysis 
@@ -152,6 +154,33 @@ prepare_anthropometric_data <- function(data_clean){
       waist_pre = waist_pre - mean(waist_pre),
       hip_pre   = hip_pre - mean(hip_pre) 
     )
+}
+
+#### Function to prepare the data for the CFA Behaviur Model ####
+prepare_cfa_behaviour_data <- function(data_clean){
+
+  # Return a Matrix of the indicators that will be used by the model 
+  data_cont <- data_clean %>%
+    select(
+      diet_score_post,
+      exercise_post_total,
+      self_care_score_post,
+      exercise_duration_post
+    ) %>%
+    as.matrix()
+  
+  data_bin <- data_clean %>%
+    select(
+      exercise_adherence,
+      diet_adherence
+    ) %>%
+    as.matrix()
+  
+  # Return a list with the data 
+  return(list(
+    cont_data = data_cont,
+    bin_data  = data_bin
+  ))
 }
 
 
