@@ -1,5 +1,6 @@
 #### Data Generative Processes to Support the Validation of all Anthropometry models ==================================
 library(mvtnorm)
+source("R/clean_data_raw.R")
 
 ## Total effect of PIP on post-intervention BMI
 dgp_total_bmi <- function(
@@ -209,69 +210,183 @@ dgp_anthropometric <- function(
 dgp_cfa_behaviour <- function(
     n = 200,
     # Prior SDs for the loadings lambda_k ~ Normal(0, sd)
-    sd_lambda_SDSCA   = 1,
-    sd_lambda_Qpost   = 1,
-    sd_lambda_Adhere  = 1,
-    sd_lambda_EXR_ADH = 1,
+    sd_lambda_self_care_score_post = 1,
+    sd_lambda_q_score_post         = 1,
+    sd_lambda_diet_adherence     = 1,
+    sd_lambda_exercise_adherence = 1,
     # Prior SDs for the intercepts nu_k ~ Normal(0, sd)
-    sd_nu_SDSCA       = 5,
-    sd_nu_Qpost       = 5,
-    sd_nu_Adhere      = 1,    
-    sd_nu_EXR_ADH     = 1,    
+    sd_nu_self_care_score_post  = 5,
+    sd_nu_q_score_post    = 5,
+    sd_nu_diet_adherence = 1,    
+    sd_nu_exercise_adherence = 1,    
     # Prior SDs for the residuals psi_k ~ HalfNormal(0, sd)
-    sd_psi_SDSCA      = 3,
-    sd_psi_Qpost      = 3
+    sd_psi_self_care_score_post  = 3,
+    sd_psi_q_score_post          = 3
   ){
   # Draw factor loadings from priors 
   # SDSCA is the marker: 
-  lambda_SDSCA   <- abs(rnorm(1, 0, sd_lambda_SDSCA))
-  lambda_Qpost   <- rnorm(1, 0, sd_lambda_Qpost)
-  lambda_Adhere  <- rnorm(1, 0, sd_lambda_Adhere)
-  lambda_EXR_ADH <- rnorm(1, 0, sd_lambda_EXR_ADH)
+  lambda_self_care_score_post <- abs(rnorm(1, 0, sd_lambda_self_care_score_post))
+  lambda_q_score_post    <- rnorm(1, 0, sd_lambda_q_score_post)
+  lambda_diet_adherence  <- rnorm(1, 0, sd_lambda_diet_adherence)
+  lambda_exercise_adherence <- rnorm(1, 0, sd_lambda_exercise_adherence)
   
   # Draw indicator intercepts from priors 
-  nu_SDSCA   <- rnorm(1, 0, sd_nu_SDSCA)
-  nu_Qpost   <- rnorm(1, 0, sd_nu_Qpost)
-  nu_Adhere  <- rnorm(1, 0, sd_nu_Adhere)
-  nu_EXR_ADH <- rnorm(1, 0, sd_nu_EXR_ADH)
+  nu_self_care_score_post   <- rnorm(1, 0, sd_nu_self_care_score_post)
+  nu_q_score_post    <- rnorm(1, 0, sd_nu_q_score_post)
+  nu_diet_adherence  <- rnorm(1, 0, sd_nu_diet_adherence)
+  nu_exercise_adherence <- rnorm(1, 0, sd_nu_exercise_adherence)
   
   # Draw residual SDs from priors 
-  psi_SDSCA <- abs(rnorm(1, 0, sd_psi_SDSCA))
-  psi_Qpost <- abs(rnorm(1, 0, sd_psi_Qpost))
+  psi_self_care_score_post <- abs(rnorm(1, 0, sd_psi_self_care_score_post))
+  psi_q_score_post         <- abs(rnorm(1, 0, sd_psi_q_score_post))
   
   # Sample latent variable per observation 
   eta <- rnorm(n, 0, 1)
   
   # Continuous indicators (SDSCA, Qpost) 
-  SDSCA <- nu_SDSCA + lambda_SDSCA * eta + rnorm(n, 0, psi_SDSCA)
-  Qpost <- nu_Qpost + lambda_Qpost * eta + rnorm(n, 0, psi_Qpost)
-  
+  self_care_score_post <- ( 
+    nu_self_care_score_post 
+    + lambda_self_care_score_post 
+    * eta 
+    + rnorm(n, 0, psi_self_care_score_post)
+  )
+  q_score_post <- ( 
+    nu_q_score_post 
+    + lambda_q_score_post  
+    * eta 
+    + rnorm(n, 0, psi_q_score_post)
+  )
   # Binary indicators (Adhere, EXR_ADH) via probit 
-  p_Adhere  <- pnorm(nu_Adhere  + lambda_Adhere  * eta)
-  p_EXR_ADH <- pnorm(nu_EXR_ADH + lambda_EXR_ADH * eta)
-  Adhere    <- rbinom(n, 1, p_Adhere)
-  EXR_ADH   <- rbinom(n, 1, p_EXR_ADH)
+  p_diet_adherence     <- pnorm(nu_diet_adherence  + lambda_diet_adherence  * eta)
+  p_exercise_adherence <- pnorm(nu_exercise_adherence + lambda_exercise_adherence * eta)
+  diet_adherence     <- rbinom(n, 1, p_diet_adherence)
+  exercise_adherence <- rbinom(n, 1, p_exercise_adherence)
   
-  # Return data + true parameters for SBC and recovery checking
+  # Prepare the data to be used with Stan 
+  raw_dgp_data <- data_frame(
+    self_care_score_post  = self_care_score_post,
+    q_score_post   = q_score_post,
+    diet_adherence = diet_adherence,
+    exercise_adherence = exercise_adherence
+  )
+  stan_data <- prepare_cfa_behaviour_data(raw_dgp_data)
+  
+  # Return Stan data + true parameters for SBC and recovery checking
   list(
-    data = data.frame(
-      SDSCA   = SDSCA,
-      Qpost   = Qpost,
-      Adhere  = Adhere,
-      EXR_ADH = EXR_ADH
-    ),
+    data = stan_data,
     true_params = list(
-      lambda_SDSCA   = lambda_SDSCA,
-      lambda_Qpost   = lambda_Qpost,
-      lambda_Adhere  = lambda_Adhere,
-      lambda_EXR_ADH = lambda_EXR_ADH,
-      nu_SDSCA       = nu_SDSCA,
-      nu_Qpost       = nu_Qpost,
-      nu_Adhere      = nu_Adhere,
-      nu_EXR_ADH     = nu_EXR_ADH,
-      psi_SDSCA      = psi_SDSCA,
-      psi_Qpost      = psi_Qpost,
-      eta            = eta            
+      # Lambdas
+      lambda_self_care_score_post = lambda_self_care_score_post,
+      lambda_q_score_post         = lambda_q_score_post ,
+      lambda_diet_adherence     = lambda_diet_adherence,
+      lambda_exercise_adherence = lambda_exercise_adherence,
+      # Nu
+      nu_self_care_score_post = nu_self_care_score_post,
+      nu_q_score_post         = nu_q_score_post ,
+      nu_diet_adherence      = nu_diet_adherence,
+      nu_exercise_adherence  = nu_exercise_adherence,
+      # PSI
+      psi_self_care_score_post = psi_self_care_score_post,
+      psi_q_score_post         = psi_q_score_post,
+      # Eta 
+      eta  = eta            
+    )
+  )
+}
+####  CFA on the behaviour indicators — 3 continuous + 2 binary ####
+dgp_cfa_behaviour2 <- function(
+    n = 200,
+    # Prior SDs for the loadings  lambda_k ~ Normal(0, sd)
+    sd_lambda_self_care_score_post = 1,
+    sd_lambda_diet_score_post      = 1,
+    sd_lambda_exercise_post_total  = 1,
+    sd_lambda_diet_adherence       = 1,
+    sd_lambda_exercise_adherence   = 1,
+    # Prior SDs for the intercepts  nu_k ~ Normal(0, sd)
+    sd_nu_self_care_score_post     = 0.5,
+    sd_nu_diet_score_post          = 0.5,
+    sd_nu_exercise_post_total      = 0.5,
+    sd_nu_diet_adherence           = 0.5,
+    sd_nu_exercise_adherence       = 0.5,
+    # Residual SDs for continuous indicators  psi_k ~ LogNormal(0, sd)
+    meanlog_psi = 0,
+    sdlog_psi   = 0.5
+){
+  
+  # Draw factor loadings from priors 
+  lambda_self_care_score_post <- rnorm(1, 0, sd_lambda_self_care_score_post)
+  lambda_diet_score_post      <- rnorm(1, 0, sd_lambda_diet_score_post)
+  lambda_exercise_post_total  <- rnorm(1, 0, sd_lambda_exercise_post_total)
+  lambda_diet_adherence       <- rnorm(1, 0, sd_lambda_diet_adherence)
+  lambda_exercise_adherence   <- rnorm(1, 0, sd_lambda_exercise_adherence)
+  
+  # Draw indicator intercepts from priors 
+  nu_self_care_score_post <- rnorm(1, 0, sd_nu_self_care_score_post)
+  nu_diet_score_post      <- rnorm(1, 0, sd_nu_diet_score_post)
+  nu_exercise_post_total  <- rnorm(1, 0, sd_nu_exercise_post_total)
+  nu_diet_adherence       <- rnorm(1, 0, sd_nu_diet_adherence)
+  nu_exercise_adherence   <- rnorm(1, 0, sd_nu_exercise_adherence)
+  
+  # Draw residual SDs for continuous indicators 
+  psi_self_care_score_post <- rlnorm(1, meanlog_psi, sdlog_psi)
+  psi_diet_score_post      <- rlnorm(1, meanlog_psi, sdlog_psi)
+  psi_exercise_post_total  <- rlnorm(1, meanlog_psi, sdlog_psi)
+  
+  # Sample latent variable per observation (unit variance) 
+  eta <- rnorm(n, 0, 1)
+  
+  # Continuous indicators 
+  self_care_score_post <- nu_self_care_score_post +
+    lambda_self_care_score_post * eta +
+    rnorm(n, 0, psi_self_care_score_post)
+  
+  diet_score_post <- nu_diet_score_post +
+    lambda_diet_score_post * eta +
+    rnorm(n, 0, psi_diet_score_post)
+  
+  exercise_post_total <- nu_exercise_post_total +
+    lambda_exercise_post_total * eta +
+    rnorm(n, 0, psi_exercise_post_total)
+  
+  # Binary indicators via probit
+  p_diet_adherence     <- pnorm(nu_diet_adherence     + lambda_diet_adherence     * eta)
+  p_exercise_adherence <- pnorm(nu_exercise_adherence + lambda_exercise_adherence * eta)
+  diet_adherence       <- rbinom(n, 1, p_diet_adherence)
+  exercise_adherence   <- rbinom(n, 1, p_exercise_adherence)
+  
+  # Assemble raw data 
+  raw_dgp_data <- data.frame(
+    self_care_score_post = self_care_score_post,
+    diet_score_post      = diet_score_post,
+    exercise_post_total  = exercise_post_total,
+    diet_adherence       = diet_adherence,
+    exercise_adherence   = exercise_adherence
+  )
+  
+  stan_data <- prepare_cfa_behaviour_data(raw_dgp_data)
+  
+  # Return Stan data + true parameters
+  list(
+    data = stan_data,
+    true_params = list(
+      # Loadings 
+      lambda_self_care_score_post = lambda_self_care_score_post,
+      lambda_diet_score_post      = lambda_diet_score_post,
+      lambda_exercise_post_total  = lambda_exercise_post_total,
+      lambda_diet_adherence       = lambda_diet_adherence,
+      lambda_exercise_adherence   = lambda_exercise_adherence,
+      # Intercepts
+      nu_self_care_score_post = nu_self_care_score_post,
+      nu_diet_score_post      = nu_diet_score_post,
+      nu_exercise_post_total  = nu_exercise_post_total,
+      nu_diet_adherence       = nu_diet_adherence,
+      nu_exercise_adherence   = nu_exercise_adherence,
+      # Residual SDs 
+      psi_self_care_score_post = psi_self_care_score_post,
+      psi_diet_score_post      = psi_diet_score_post,
+      psi_exercise_post_total  = psi_exercise_post_total,
+      # Latent values
+      eta = eta
     )
   )
 }
