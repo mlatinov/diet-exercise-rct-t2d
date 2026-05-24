@@ -1,0 +1,87 @@
+/* =============================================================================
+   diagnostics.stanfunctions
+   -----------------------------------------------------------------------------
+   Generated-quantities helpers for posterior predictive checking and calibration.
+
+       #include lib/diagnostics.stanfunctions
+   ============================================================================= */
+
+// ---- Residuals --------------------------------------------------------------
+
+// Raw residuals y - mu.
+vector raw_residuals(vector y, vector mu) {
+  return y - mu;
+}
+
+// Pearson / standardized residuals (Gaussian): (y - mu) / sigma.
+vector pearson_residuals(vector y, vector mu, real sigma) {
+  return (y - mu) / sigma;
+}
+
+// ---- Probability Integral Transform (calibration) --------------------------
+// For a well-calibrated continuous model, PIT values are ~ Uniform(0,1).
+// Plot a histogram / ECDF of these across observations & draws.
+vector normal_pit(vector y, vector mu, real sigma) {
+  int N = num_elements(y);
+  vector[N] u;
+  for (n in 1:N) u[n] = normal_cdf(y[n] | mu[n], sigma);
+  return u;
+}
+
+// Per-observation (pointwise) log-likelihood vectors. Store the result in a
+//  generated-quantities variable named `log_lik` so the {loo} package can read it:
+vector normal_pointwise_loglik(vector y, vector mu, real sigma) {
+  int N = num_elements(y);
+  vector[N] ll;
+  for (n in 1:N) ll[n] = normal_lpdf(y[n] | mu[n], sigma);
+  return ll;
+}
+
+// Gaussian outcome.
+//   y_fit : conditional means E[y|x] for this draw (the linear predictor `mu`)
+//   sigma : residual SD for this draw
+real bayes_R2_gaussian(vector y_fit, real sigma) {
+  real var_fit = variance(y_fit);
+  return var_fit / (var_fit + square(sigma));
+}
+
+// ---- Posterior predictive p-values -----------------------------------------
+// Compare a test statistic T(.) on observed vs replicated data. Return 1 if the
+// replicated statistic is at least as extreme; the across-draw mean is the
+// Bayesian p-value (values near 0 or 1 flag misfit; ~0.5 is ideal).
+//
+// Example test statistics provided: mean, SD, max. Pass y (observed) and y_rep
+// (a draw from posterior_predictive.stanfunctions).
+
+int ppc_indicator_mean(vector y, vector y_rep) {
+  return mean(y_rep) >= mean(y);
+}
+int ppc_indicator_sd(vector y, vector y_rep) {
+  return sd(y_rep) >= sd(y);
+}
+int ppc_indicator_max(vector y, vector y_rep) {
+  return max(y_rep) >= max(y);
+}
+
+// ---- Threshold / direction indicators (one draw) ---------------------------
+int effect_gt(real effect, real threshold) { return effect > threshold; }
+int effect_lt(real effect, real threshold) { return effect < threshold; }
+int is_positive(real effect)               { return effect > 0; }
+int is_negative(real effect)               { return effect < 0; }
+
+// Region Of Practical Equivalence: is the effect inside [lower, upper]?
+// Averaged across draws this is the posterior probability of practical null.
+int in_rope(real effect, real lower, real upper) {
+  return (effect >= lower) && (effect <= upper);
+}
+
+// Symmetric ROPE convenience: |effect| <= radius.
+int in_rope_symmetric(real effect, real radius) {
+  return (effect >= -radius) && (effect <= radius);
+}
+
+// ---- Effect-size summaries --------------------------------------------------
+// Standardized effect (Cohen's-d flavour): effect expressed in residual SDs.
+real standardized_effect(real effect, real sigma) {
+  return effect / sigma;
+}
