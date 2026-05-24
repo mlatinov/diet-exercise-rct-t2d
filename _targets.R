@@ -111,8 +111,34 @@ list(
   tar_quarto(
     name = anthropometric_report,
     path = "reports/anthropometric_report.qmd"
-  ),
-  ####  Mediated effect through behavioral latent ####
+  ),  
+  #### Composite Model #####
+  ## Stage 1 (anchor): Model A:  Mass_post ~ Treatment + Mass_pre
+
+  ## Stage 2 (a-paths — does treatment move each mediator?):
+  # Model B1: Diet      ~ Treatment + Diet_pre
+  # Model B2: Activity  ~ Treatment + Activity_pre
+  # Model B3: SelfCare  ~ Treatment + SelfCare_pre
+  
+  ## Stage 3 (b-paths — does each mediator predict outcome?):
+  # Model C1: Mass_post ~ Treatment + Mass_pre + Diet
+  # Model C2: Mass_post ~ Treatment + Mass_pre + Activity
+  # Model C3: Mass_post ~ Treatment + Mass_pre + SelfCare
+  
+  ## Stage 4 (joint mediators):
+  # Model D:  Mass_post ~ Treatment + Mass_pre + Diet + Activity + SelfCare
+  
+  ## Stage 5 (moderation — if a barrier matters, single-item):
+  # Model E:  Mass_post ~ Treatment * [chosen_barrier] + Mass_pre + [mediators]
+  
+  ## Stage 6 (full path model — mediation decomposition):
+  # Diet, Activity, SelfCare ~ Treatment (+ baselines)
+  # Mass_post ~ Treatment + Mass_pre + Diet + Activity + SelfCare
+  
+  ## Stage 7 (knowledge, separate strand):
+  # Model F:  Knowledge_post ~ Treatment + Knowledge_pre
+  #### Optional Mediated effect through behavioral latent ####
+  
   ## CFA analysis on the behaviour indicators
   tar_target(
     name = gen_cfa_behaviour,
@@ -131,5 +157,4 @@ list(
     command = cfa_behaviour_model(cfa_data_behaviour_data)
   )
 )
-
 
