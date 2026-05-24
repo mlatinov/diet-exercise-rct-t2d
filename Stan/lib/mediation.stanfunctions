@@ -1,0 +1,60 @@
+/* =============================================================================
+   mediation.stanfunctions
+   -----------------------------------------------------------------------------
+   Causal mediation decompositions in the counterfactual framework of Robins &
+   Greenland / Pearl / VanderWeele / Imai et al.
+
+   Notation for potential outcomes Y(t, M(t')):
+     - first argument t  = treatment value entering the OUTCOME directly
+     - second argument t' = treatment value that GENERATED the mediator
+   Mediator potential values:  M(0), M(1).
+
+   Four building-block potential outcomes (predict each for every unit):
+     y00 = Y(0, M(0))   y10 = Y(1, M(0))
+     y01 = Y(0, M(1))   y11 = Y(1, M(1))
+
+   Effect definitions (averaged over the sample = natural effects):
+     TE   = E[Y(1,M(1)) - Y(0,M(0))]                 total effect
+     PNDE = E[Y(1,M(0)) - Y(0,M(0))]                 pure natural direct effect
+     TNDE = E[Y(1,M(1)) - Y(0,M(1))]                 total natural direct effect
+     PNIE = E[Y(0,M(1)) - Y(0,M(0))]                 pure natural indirect effect
+     TNIE = E[Y(1,M(1)) - Y(1,M(0))]                 total natural indirect effect
+   With TE = PNDE + TNIE = TNDE + PNIE. The two NDE/NIE flavours differ only
+   when there is exposure-mediator interaction; without it PNDE == TNDE etc.
+
+       #include lib/mediation.stanfunctions
+   ============================================================================= */
+
+// ---- Analytic (linear-linear, no exposure-mediator interaction) ------------
+// Classic Baron-Kenny / product-of-coefficients form.
+//   a  = effect of treatment T on the mediator M
+//   b  = effect of mediator M on the outcome Y (holding T)
+//   cp = direct effect of T on Y (the "c-prime" path, holding M)
+// Returns [TE, NDE, NIE, proportion_mediated].
+vector mediation_linear(real a, real b, real cp) {
+  real NIE = a * b;        // indirect path T -> M -> Y
+  real NDE = cp;           // direct path  T -> Y
+  real TE  = NDE + NIE;
+  real PM  = NIE / TE;     // proportion mediated
+  return [TE, NDE, NIE, PM]';
+}
+
+// ---- General simulation-based decomposition --------------------------------
+// Pass the four potential-outcome vectors (built by simulating the mediator,
+// see the mediation template). Works for ANY link / interaction structure.
+// Returns [TE, PNDE, TNDE, PNIE, TNIE, proportion_mediated].
+vector mediation_decomp(vector y11, vector y10, vector y01, vector y00) {
+  real TE   = mean(y11 - y00);
+  real PNDE = mean(y10 - y00);
+  real TNDE = mean(y11 - y01);
+  real PNIE = mean(y01 - y00);
+  real TNIE = mean(y11 - y10);
+  real PM   = TNIE / TE;
+  return [TE, PNDE, TNDE, PNIE, TNIE, PM]';
+}
+
+// Convenience: proportion mediated from a TE / NIE pair, guarded against the
+// pathological TE ~ 0 case that makes the ratio explode.
+real proportion_mediated(real TE, real NIE) {
+  return NIE / TE;
+}
