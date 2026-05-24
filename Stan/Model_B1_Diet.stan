@@ -1,17 +1,10 @@
+// Include Stan lib Function 
 functions {
-    // Z Score Standartization 
-    vector zscore(vector x) {
-        return (x - mean(x)) / sd(x);
-    }
-    // Build an equal-weight composite from a block of items with per-item signs.
-    vector composite(matrix items, vector sign) {
-        int N = rows(items);
-        int J = cols(items);
-        vector[N] acc = rep_vector(0, N);
-        for (j in 1:J) acc += sign[j] * zscore(items[, j]);
-        return acc / J;
-  }
+    #include "lib/utils.stanfunctions"
+    #include "lib/composites.stanfunctions"
+    #include "lib/diagnostics.stanfunctions"
 }
+
 // Input Data block 
 data{
 
@@ -58,31 +51,74 @@ model{
 }
 // Aditional calculations 
 generated quantities {
-   // Linear predictors
-   vector[N] mu =  alpha + beta_treatment * treatment + beta_diet_pre * diet_pre_stand;
+    // EXPECTED VALUES / LINEAR PREDICTOR ====================
+    vector[N] mu =  alpha + beta_treatment * treatment + beta_diet_pre * diet_pre_stand;
+    
+    // POSTERIOR PREDICTIVE GENERATION 
+    // Simulated replicated outcomes for PPCs
+    vector[N] mass_post_rep = normal_predictive_rng(mu, sigma);
+    
+    // MODEL FIT / INFORMATION CRITERIA ========================
+    // Pointwise log-likelihood for:
+    vector[N] log_lik = normal_pointwise_loglik(diet_post_stand, mu, sigma);
+    
+    // Bayesian R²
+    real R2 = bayes_R2_gaussian(mu, sigma);
+    
+    // TREATMENT EFFECT ESTIMATION =================================
+    
+    // Raw treatment effect
+    real treatment_effect = beta_treatment;
+    
+    // Standardized effect size
+    real treatment_effect_std = standardized_effect(beta_treatment, sigma);
+    
+    // Adjusted means (population-average predictions)
+    real adjusted_mean_control = alpha + beta_diet_pre * mean(diet_post_stand);
+    
+    real adjusted_mean_treated =
+        alpha
+        + beta_treatment
+        + beta_diet_pre * mean(diet_post_stand);
+        
+    // Average Treatment Effect
+    real ATE = adjusted_mean_treated - adjusted_mean_control;
+    
+    // DIRECTIONAL / PROBABILITY STATEMENTS =========================
+    
+    // Probability treatment reduces metabolic burden
+    int treatment_reduces_mass = effect_lt(beta_treatment, 0);
 
-   // Posterior predictive draws 
-   vector[N] diet_post_rep;
-   for(i in 1:N){
-    diet_post_rep[i] = normal_rng(mu[i], sigma);
-   }
-   
-   // Pointwise log-likelihood (for LOO / WAIC) 
-   vector[N] log_link;
-   for(i in 1:N){
-    log_link[i] = normal_lpdf(diet_post_stand[i] | mu[i], sigma);
-   }
+    // Probability treatment increases metabolic burden
+    int treatment_increases_mass = effect_gt(beta_treatment, 0);
 
-   // Bayesian R^2 
-   real R2;
-   {
-    real var_fit = variance(mu);
-    R2           = var_fit / (var_fit + square(sigma)); 
-   }
+    // Probability effect practically negligible
+    int treatment_in_rope = in_rope(beta_treatment, -0.10, 0.10);
 
-   // Avetage Treatment Effect ATE 
-   real ATE_std       = beta_treatment;
-   real ATE_composite = beta_treatment * diet_post_sd;
+    // Strong clinically meaningful reduction
+    int treatment_large_reduction = effect_lt(beta_treatment, -0.30);
+
+    // RESIDUAL DIAGNOSTICS ===========================================
+
+    // Raw residuals
+    vector[N] raw_resid = raw_residuals(diet_post_stand, mu);
+
+    // Standardized / Pearson residuals
+    vector[N] pearson_resid = pearson_residuals(diet_post_stand, mu, sigma);
+    
+    // CALIBRATION DIAGNOSTICS
+
+    // PIT values should be Uniform(0,1)
+    vector[N] pit = normal_pit(diet_post_stand, mu, sigma);
+
+    // POSTERIOR PREDICTIVE CHECKS =====================================
+
+    // Bayesian posterior predictive p-values
+    int p_mean = ppc_indicator_mean(diet_post_stand, mass_post_rep);
+
+    int p_sd = ppc_indicator_sd(diet_post_stand, mass_post_rep);
+
+    int p_max = ppc_indicator_max(diet_post_stand, mass_post_rep);
 
 }
 

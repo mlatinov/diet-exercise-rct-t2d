@@ -1,36 +1,10 @@
+// Include Stan lib Function 
 functions {
-    // Zscore function 
-    vector zscore(vector x) {
-        return (x - mean(x)) / sd(x);
-    }
-    // MET-style activity composite
-    vector activity_index(
-        vector intensity,
-        vector duration,
-        vector frequency
-    ) {
-        int N = rows(intensity);
-        
-        // Log-transform to stabilize scale
-        vector[N] log_intensity = log1p(intensity);
-        vector[N] log_duration  = log1p(duration);
-        vector[N] log_frequency = log1p(frequency);
-        
-        // Standardize components
-        vector[N] z_intensity = zscore(log_intensity);
-        vector[N] z_duration  = zscore(log_duration);
-        vector[N] z_frequency = zscore(log_frequency);
-
-        // Equal-weight additive MET proxy
-        vector[N] activity;
-        
-        // Calculate the MEts 
-        activity =
-        (z_intensity + z_duration + z_frequency) / 3;
-        
-        return activity;
-    }
+    #include "lib/utils.stanfunctions"
+    #include "lib/composites.stanfunctions"
+    #include "lib/diagnostics.stanfunctions"
 }
+
 // Input data block 
 data{
     int<lower=1> N;
@@ -71,42 +45,74 @@ model{
 }
 // Aditional Calculations 
 generated quantities {
-   // Linear Predictions 
-   vector[N] mu = alpha + beta_treatment * treatment + beta_activity_pre * activity_pre;
-
-   // Posterior predictive draws & Pointwise log-likelihood (for LOO / WAIC)
-   vector[N] activity_post_rep;
-   vector[N] log_lik;
-   for(i in 1:N){
-    activity_post_rep[i] = normal_rng(mu[i], sigma);
-    log_lik[i]           = normal_lpdf(activity_post[i] | mu[i], sigma);
-   }
-
-   // Bayesian R2
-   real R2;
-   {
-    real var_fit = variance(mu);
-    R2           = var_fit / (var_fit + square(sigma)); 
-   }
-   
-   // Counterfactual predictions
-   vector[N] mu_treated;
-   vector[N] mu_control;
-   for(i in 1:N){
-    mu_treated[i] =
-    alpha
-    + beta_treatment
-    + beta_activity_pre * activity_pre[i];
     
-    mu_control[i] =
-    alpha
-    + beta_activity_pre * activity_pre[i]; 
-    }
+    // EXPECTED VALUES / LINEAR PREDICTOR ====================
+    vector[N] mu = alpha + beta_treatment * treatment + beta_activity_pre * activity_pre;
 
-    // ITE ATE & Adjusted Group Means 
-    vector[N] ITE = mu_treated - mu_control;
-    real ATE      = mean(ITE);
-    real mean_treated =  mean(mu_treated);
-    real mean_control =  mean(mu_control);
+    // POSTERIOR PREDICTIVE GENERATION 
+    // Simulated replicated outcomes for PPCs
+    vector[N] mass_post_rep = normal_predictive_rng(mu, sigma);
+    
+    // MODEL FIT / INFORMATION CRITERIA ========================
+    // Pointwise log-likelihood for:
+    vector[N] log_lik = normal_pointwise_loglik(activity_post, mu, sigma);
+    
+    // Bayesian R²
+    real R2 = bayes_R2_gaussian(mu, sigma);
+    
+    // TREATMENT EFFECT ESTIMATION =================================
+    
+    // Raw treatment effect
+    real treatment_effect = beta_treatment;
+    
+    // Standardized effect size
+    real treatment_effect_std = standardized_effect(beta_treatment, sigma);
+    
+    // Adjusted means (population-average predictions)
+    real adjusted_mean_control = alpha + beta_activity_pre * mean(activity_post);
+    
+    real adjusted_mean_treated =
+        alpha
+        + beta_treatment
+        + beta_activity_pre * mean(activity_post);
+        
+    // Average Treatment Effect
+    real ATE = adjusted_mean_treated - adjusted_mean_control;
+    
+    // DIRECTIONAL / PROBABILITY STATEMENTS =========================
+    
+    // Probability treatment reduces metabolic burden
+    int treatment_reduces_mass = effect_lt(beta_treatment, 0);
+
+    // Probability treatment increases metabolic burden
+    int treatment_increases_mass = effect_gt(beta_treatment, 0);
+
+    // Probability effect practically negligible
+    int treatment_in_rope = in_rope(beta_treatment, -0.10, 0.10);
+
+    // Strong clinically meaningful reduction
+    int treatment_large_reduction = effect_lt(beta_treatment, -0.30);
+
+    // RESIDUAL DIAGNOSTICS ===========================================
+
+    // Raw residuals
+    vector[N] raw_resid = raw_residuals(activity_post, mu);
+
+    // Standardized / Pearson residuals
+    vector[N] pearson_resid = pearson_residuals(activity_post, mu, sigma);
+    
+    // CALIBRATION DIAGNOSTICS
+
+    // PIT values should be Uniform(0,1)
+    vector[N] pit = normal_pit(activity_post, mu, sigma);
+
+    // POSTERIOR PREDICTIVE CHECKS =====================================
+
+    // Bayesian posterior predictive p-values
+    int p_mean = ppc_indicator_mean(activity_post, mass_post_rep);
+
+    int p_sd = ppc_indicator_sd(activity_post, mass_post_rep);
+
+    int p_max = ppc_indicator_max(activity_post, mass_post_rep);
 
 }
