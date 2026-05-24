@@ -1,0 +1,57 @@
+/* =============================================================================
+   utils.stanfunctions
+   -----------------------------------------------------------------------------
+   General mathematical helper functions used throughout the Bayesian SEM /
+   path-analysis project.
+
+   Philosophy
+   ----------
+   These functions are intentionally lightweight, deterministic, and reusable.
+   They perform common transformations that appear repeatedly across models,
+   helping keep the main Stan programs clean and reducing duplicated code.
+
+   Current utilities
+   -----------------
+     zscore(x)
+       Standardizes a vector:
+           z = (x - mean(x)) / sd(x)
+
+       Result:
+         - mean approximately 0
+         - standard deviation approximately 1
+
+       Used for:
+         - composite index construction
+         - scale harmonization
+         - standardized effect estimation
+         - stable prior specification
+
+   Design notes
+   ------------
+     * Standardization is performed inside Stan for transparency and to ensure
+       all transformations are part of the probabilistic workflow.
+     * zscore() uses sample mean and sample standard deviation.
+     * These utilities operate deterministically on observed data only; they do
+       not introduce additional uncertainty or latent structure.
+
+   Typical usage
+   -------------
+       #include "lib/utils.stanfunctions"
+
+   ============================================================================= */
+// ---- Z-score (standardize to mean 0, sd 1) ---------------------------------
+
+// Standardize using the vector's own mean and sample SD.
+vector zscore(vector x) {
+  return (x - mean(x)) / sd(x);
+}
+
+// Standardize with externally supplied location and scale (e.g. training stats).
+vector zscore_with(vector x, real loc, real scl) {
+  return (x - loc) / scl;
+}
+
+// Invert a z-score back to the original units.
+vector unzscore(vector z, real loc, real scl) {
+  return z * scl + loc;
+}
