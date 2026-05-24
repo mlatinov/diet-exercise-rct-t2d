@@ -1,0 +1,117 @@
+/* =============================================================================
+   composites.stanfunctions
+   -----------------------------------------------------------------------------
+   Composite-index construction functions for observed-variable Bayesian SEM and
+   path-analysis models.
+
+   Philosophy
+   ----------
+   Rather than estimating latent variables directly through CFA/SEM, this
+   project constructs interpretable observed composites from standardized
+   indicators. This improves:
+     - model stability
+     - interpretability
+     - computational robustness
+     - identifiability
+
+   All composites are deterministic transformations of observed data.
+
+   Core principles
+   ---------------
+     * Indicators are standardized before combination.
+     * Composite directionality is harmonized so larger values consistently
+       represent "more" of the construct.
+     * Equal weighting is used by default to minimize researcher degrees of
+       freedom and avoid overfitting.
+     * Composite construction is pre-specified before outcome modeling.
+
+   Functions
+   ---------
+
+     composite(items, sign)
+       Builds an equal-weight additive composite index from a matrix of items.
+
+       Inputs:
+         items : N x J matrix of indicators
+         sign  : vector of +1 / -1 values controlling direction alignment
+
+       Procedure:
+         1. Standardize each indicator
+         2. Reverse-code indicators where sign[j] = -1
+         3. Average standardized indicators equally
+
+       Output:
+         Composite score on an approximately standardized scale.
+
+       Typical use:
+         - metabolic burden indices
+         - self-care indices
+         - diet quality indices
+         - barrier/friction indices
+
+     activity_index(intensity, duration, frequency)
+       Builds a MET-style physical activity composite inspired by standard
+       metabolic-equivalent formulations.
+
+       Inputs:
+         intensity : activity intensity measure
+         duration  : activity duration measure
+         frequency : activity frequency measure
+
+       Procedure:
+         1. Apply log1p transform to stabilize skewed count-like scales
+         2. Standardize each component
+         3. Compute equal-weight additive activity score
+
+       Motivation
+       ----------
+       Classical MET formulations are based on combinations of:
+           intensity × duration × frequency
+
+       This implementation provides a stabilized and standardized proxy suitable
+       for regression and mediation modeling.
+
+   Typical usage
+   -------------
+       #include "lib/composites.stanfunctions"
+
+   Dependencies
+   ------------
+     Requires:
+       zscore() from utils.stanfunctions
+
+   ============================================================================= */
+// Build an equal-weight composite from a block of items with per-item signs.
+vector composite(matrix items, vector sign) {
+    int N = rows(items);
+    int J = cols(items);
+    vector[N] acc = rep_vector(0, N);
+    for (j in 1:J) acc += sign[j] * zscore(items[, j]);
+    return acc / J;
+}
+
+// MET-style activity composite
+vector activity_index(
+    vector intensity,
+    vector duration,
+    vector frequency
+) {
+    int N = rows(intensity);
+    // Log-transform to stabilize scale
+    vector[N] log_intensity = log1p(intensity);
+    vector[N] log_duration  = log1p(duration);
+    vector[N] log_frequency = log1p(frequency);
+        
+    // Standardize components
+    vector[N] z_intensity = zscore(log_intensity);
+    vector[N] z_duration  = zscore(log_duration);
+    vector[N] z_frequency = zscore(log_frequency);
+
+    // Equal-weight additive MET proxy
+    vector[N] activity;
+        
+    // Calculate the MEts 
+    activity = (z_intensity + z_duration + z_frequency) / 3;
+        
+    return activity;
+}
