@@ -12,13 +12,15 @@ data{
     vector[N] self_care_pre;
 
     // Indices Blocks 
-    int<lower=1> J_self_care_post; matrix[N, J_self_care_post] self_cate_post_items; vector[J_self_care_post] self_cate_post_sing;
+    int<lower=1> J_self_care_post; 
+    matrix[N, J_self_care_post] self_care_post_items; 
+    vector[J_self_care_post] self_care_post_sing;
 }
 
 // Data Transformation block 
 transformed data {
    // Build the Indice 
-   vector[N] self_care = composite(self_cate_post_items, self_cate_post_sing);
+   vector[N] self_care = composite(self_care_post_items, self_care_post_sing);
 
    // Standartize the Self Care Composite and self care pre
    vector[N] self_care_stand     = zscore(self_care);
@@ -33,36 +35,41 @@ parameters{
     real alpha;
     real beta_treatment;
     real beta_self_care_pre;
-    real<lower=0> sigma;
+    real<lower=0.001> sigma;
 }
 
 // Model Block 
 model{
     // Priors
-    alpha              ~ normal(0, 1);
-    beta_treatment     ~ normal(0, 1);
-    beta_self_care_pre ~ normal(0, 1);
+    alpha              ~ normal(0, 0.5);
+    beta_treatment     ~ normal(0, 0.5);
+    beta_self_care_pre ~ normal(0.8, 0.3);
     sigma ~ exponential(1);
 
     // Model Likelihood
-    self_care_stand ~ normal(alpha + beta_treatment * treatment + beta_self_care_pre * self_care_pre_stand, sigma);
+    self_care_stand ~ normal(
+        alpha 
+        + beta_treatment     * treatment 
+        + beta_self_care_pre * self_care_pre_stand
+        , sigma
+    );
 }
 
 // Additional Calculations 
 generated quantities {
 
-    // EXPECTED VALUES / LINEAR PREDICTOR ====================
+    // EXPECTED VALUES / LINEAR PREDICTOR =========================
     vector[N] mu = alpha + beta_treatment * treatment + beta_self_care_pre * self_care_pre_stand;
 
-    // POSTERIOR PREDICTIVE GENERATION 
+    // POSTERIOR PREDICTIVE GENERATION ============================
     // Simulated replicated outcomes for PPCs
-    vector[N] mass_post_rep = normal_predictive_rng(mu, sigma);
+    vector[N] self_care_rep = normal_predictive_rng(mu, sigma);
     
-    // MODEL FIT / INFORMATION CRITERIA ========================
+    // MODEL FIT / INFORMATION CRITERIA ===========================
     // Pointwise log-likelihood for:
     vector[N] log_lik = normal_pointwise_loglik(self_care_stand, mu, sigma);
     
-    // Bayesian R²
+    // Bayesian R2
     real R2 = bayes_R2_gaussian(mu, sigma);
     
     // TREATMENT EFFECT ESTIMATION =================================
@@ -106,7 +113,7 @@ generated quantities {
     // Standardized / Pearson residuals
     vector[N] pearson_resid = pearson_residuals(self_care_stand, mu, sigma);
     
-    // CALIBRATION DIAGNOSTICS
+    // CALIBRATION DIAGNOSTICS ===========================================
 
     // PIT values should be Uniform(0,1)
     vector[N] pit = normal_pit(self_care_stand, mu, sigma);
@@ -114,9 +121,7 @@ generated quantities {
     // POSTERIOR PREDICTIVE CHECKS =====================================
 
     // Bayesian posterior predictive p-values
-    int p_mean = ppc_indicator_mean(self_care_stand, mass_post_rep);
-
-    int p_sd = ppc_indicator_sd(self_care_stand, mass_post_rep);
-
-    int p_max = ppc_indicator_max(self_care_stand, mass_post_rep);
+    int p_mean = ppc_indicator_mean(self_care_stand, self_care_rep);
+    int p_sd   = ppc_indicator_sd(self_care_stand, self_care_rep);
+    int p_max  = ppc_indicator_max(self_care_stand, self_care_rep);
 }
