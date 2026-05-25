@@ -1,17 +1,10 @@
+// Include Stan lib Function 
 functions {
-    // Z Score Standartization 
-    vector zscore(vector x) {
-        return (x - mean(x)) / sd(x);
-    }
-    // Build an equal-weight composite from a block of items with per-item signs.
-    vector composite(matrix items, vector sign) {
-        int N = rows(items);
-        int J = cols(items);
-        vector[N] acc = rep_vector(0, N);
-        for (j in 1:J) acc += sign[j] * zscore(items[, j]);
-        return acc / J;
-  }
+    #include "lib/utils.stanfunctions"
+    #include "lib/composites.stanfunctions"
+    #include "lib/diagnostics.stanfunctions"
 }
+
 // Input Data Block 
 data{
     int<lower=1> N;
@@ -47,15 +40,15 @@ parameters{
     real beta_treatment;
     real beta_mass_pre;
     real beta_diet_post;
-    real<lower=0> sigma;
+    real<lower=0.001> sigma;
 }
 // Model Block
 model{
     // Priors
-    alpha ~ normal(0, 1);
-    beta_treatment ~ normal(0, 1);
-    beta_mass_pre  ~ normal(0, 1);
-    beta_diet_post ~ normal(0, 1);
+    alpha ~ normal(0, 0.5);
+    beta_treatment ~ normal(0, 0.5);
+    beta_mass_pre  ~ normal(0.8, 0.3);
+    beta_diet_post ~ normal(0, 0.5);
     sigma ~ exponential(1);
 
     // Model Likelihood 
@@ -69,28 +62,78 @@ model{
 } 
 // Aditional Calculations 
 generated quantities {
-   // Linear Predictor
-   vector[N] mu =  alpha 
-        + beta_treatment * treatment 
-        + beta_mass_pre  * mass_pre_stand 
+
+    // EXPECTED VALUES / LINEAR PREDICTOR ====================================
+    vector[N] mu =
+        alpha
+        + beta_treatment * treatment
+        + beta_mass_pre  * mass_pre_stand
         + beta_diet_post * diet_post_stand;
 
-    // Posterior Predictions & Pointwise log-likelihood (for LOO / WAIC)
-    vector[N] mass_post_stand_rep;
-    vector[N] log_lik;
-    for(i in 1:N){
-        mass_post_stand_rep[i] = normal_rng(mu[i], sigma);
-        log_lik[i]             = normal_lpdf(mass_post_stand[i] | mu[i], sigma); 
-    }
+    // POSTERIOR PREDICTIVE GENERATION =========================================
+    vector[N] mass_post_rep = normal_predictive_rng(mu, sigma);
 
-    // Bayesian R2
-    real R2;
-    {
-        real var_fit = variance(mu);
-        R2           = var_fit / (var_fit + square(sigma)); 
-    }
-    
-    //  Average Treatment Effect 
-    real ATE_std       = beta_treatment;                          // standardized scale
-    real ATE_composite = beta_treatment * mass_post_composite_sd; // composite's own scale
+    // MODEL FIT / INFORMATION CRITERIA ========================================
+    vector[N] log_lik = normal_pointwise_loglik(mass_post_stand, mu, sigma);
+    real R2           = bayes_R2_gaussian(mu, sigma);
+
+    // EFFECT ESTIMATION ========================================================
+
+    // Direct treatment effect after conditioning on diet 
+    real direct_treatment_effect = beta_treatment;
+    real direct_treatment_effect_std = standardized_effect(beta_treatment, sigma);
+
+    // Diet effect on metabolic burden 
+    real diet_effect = beta_diet_post;
+    real diet_effect_std = standardized_effect(beta_diet_post, sigma);
+
+    // ADJUSTED EXPECTED OUTCOMES =================================================
+
+    // Expected metabolic burden at average baseline mass + average diet
+    real adjusted_mean_control = 
+        alpha
+        + beta_mass_pre * mean(mass_pre_stand)
+        + beta_diet_post * mean(diet_post_stand);
+
+    real adjusted_mean_treated =
+        alpha
+        + beta_treatment
+        + beta_mass_pre * mean(mass_pre_stand)
+        + beta_diet_post * mean(diet_post_stand);
+
+    // Residual treatment effect after adjusting for diet
+    real residual_ATE = adjusted_mean_treated- adjusted_mean_control;
+
+    // DIET EFFECT INTERPRETATION ================================================
+
+    // Better diet reduces metabolic burden
+    int diet_reduces_mass = effect_lt(beta_diet_post, 0);
+
+    // Better diet worsens metabolic burden
+    int diet_increases_mass = effect_gt(beta_diet_post, 0);
+
+    // Diet effect practically negligible
+    int diet_effect_in_rope = in_rope(beta_diet_post, -0.10, 0.10);
+
+    // Strong clinically meaningful diet effect
+    int diet_large_effect = effect_lt(beta_diet_post, -0.30);
+
+    // DIRECT TREATMENT EFFECT INTERPRETATION =======================================
+
+    // Remaining treatment effect after conditioning on diet
+    int treatment_reduces_mass = effect_lt(beta_treatment, 0);
+    int treatment_effect_in_rope = in_rope(beta_treatment, -0.10, 0.10);
+
+    // RESIDUAL DIAGNOSTICS =========================================================
+    vector[N] raw_resid     = raw_residuals(mass_post_stand, mu);
+    vector[N] pearson_resid = pearson_residuals(mass_post_stand, mu, sigma);
+
+    // CALIBRATION DIAGNOSTICS ======================================================
+    vector[N] pit = normal_pit(mass_post_stand, mu, sigma);
+
+    // POSTERIOR PREDICTIVE CHECKS ==================================================
+    int p_mean = ppc_indicator_mean(mass_post_stand, mass_post_rep);
+    int p_sd   = ppc_indicator_sd(mass_post_stand, mass_post_rep);
+    int p_max  = ppc_indicator_max(mass_post_stand, mass_post_rep);
+
 }
