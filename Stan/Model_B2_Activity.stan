@@ -30,34 +30,39 @@ parameters{
     real alpha;
     real beta_treatment;
     real beta_activity_pre;
-    real<lower=0> sigma;
+    real<lower=0.001> sigma;
 }
 // Model Block 
 model{
     // Priors 
-    alpha             ~ normal(0, 1);
-    beta_treatment    ~ normal(0, 1);
-    beta_activity_pre ~ normal(0, 1);
+    alpha             ~ normal(0, 0.5);
+    beta_treatment    ~ normal(0, 0.5);
+    beta_activity_pre ~ normal(0.8, 0.3);
     sigma             ~ exponential(1); 
 
     // Model Likelihood 
-    activity_post ~ normal(alpha + beta_treatment * treatment + beta_activity_pre * activity_pre, sigma);
+    activity_post ~ normal(
+        alpha 
+        + beta_treatment    * treatment 
+        + beta_activity_pre * activity_pre
+        ,sigma
+    );
 }
 // Aditional Calculations 
 generated quantities {
     
-    // EXPECTED VALUES / LINEAR PREDICTOR ====================
+    // EXPECTED VALUES / LINEAR PREDICTOR ===========================
     vector[N] mu = alpha + beta_treatment * treatment + beta_activity_pre * activity_pre;
 
-    // POSTERIOR PREDICTIVE GENERATION 
+    // POSTERIOR PREDICTIVE GENERATION ==============================
     // Simulated replicated outcomes for PPCs
-    vector[N] mass_post_rep = normal_predictive_rng(mu, sigma);
+    vector[N] activity_post_rep = normal_predictive_rng(mu, sigma);
     
-    // MODEL FIT / INFORMATION CRITERIA ========================
+    // MODEL FIT / INFORMATION CRITERIA =============================
     // Pointwise log-likelihood for:
     vector[N] log_lik = normal_pointwise_loglik(activity_post, mu, sigma);
     
-    // Bayesian R²
+    // Bayesian R2
     real R2 = bayes_R2_gaussian(mu, sigma);
     
     // TREATMENT EFFECT ESTIMATION =================================
@@ -101,7 +106,7 @@ generated quantities {
     // Standardized / Pearson residuals
     vector[N] pearson_resid = pearson_residuals(activity_post, mu, sigma);
     
-    // CALIBRATION DIAGNOSTICS
+    // CALIBRATION DIAGNOSTICS ==========================================
 
     // PIT values should be Uniform(0,1)
     vector[N] pit = normal_pit(activity_post, mu, sigma);
@@ -109,10 +114,8 @@ generated quantities {
     // POSTERIOR PREDICTIVE CHECKS =====================================
 
     // Bayesian posterior predictive p-values
-    int p_mean = ppc_indicator_mean(activity_post, mass_post_rep);
-
-    int p_sd = ppc_indicator_sd(activity_post, mass_post_rep);
-
-    int p_max = ppc_indicator_max(activity_post, mass_post_rep);
+    int p_mean = ppc_indicator_mean(activity_post, activity_post_rep);
+    int p_sd   = ppc_indicator_sd(activity_post, activity_post_rep);
+    int p_max  = ppc_indicator_max(activity_post, activity_post_rep);
 
 }
