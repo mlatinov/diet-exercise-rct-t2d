@@ -9,6 +9,7 @@ tar_source("R/clean_data_raw.R")
 tar_source("dag/dgp_anthropometry.R")
 tar_source("R/anthropometry_models.R")
 tar_source("R/sbc.R")
+tar_source("R/bayesian_path_model_staircase.R")
 
 # Pipeline
 list(
@@ -83,7 +84,7 @@ list(
     path = "reports/treatment_bmi_effect.qmd",
     quiet = TRUE
   ),
-  #### Anthropometric outcomes, joint multivariate model ####
+  #### Anthropometric outcomes, joint multivariate model =============================
   tar_target(
     name = anthropometric_data,
     command = prepare_anthropometric_data(data_clean)
@@ -112,49 +113,70 @@ list(
     name = anthropometric_report,
     path = "reports/anthropometric_report.qmd"
   ),  
-  #### Composite Model #####
-  ## Stage 1 (anchor): Model A:  Mass_post ~ Treatment + Mass_pre
+  #### Composite Model =============================================================
+  
+  ## Stage 1 (anchor): Model A:  Mass_post ~ Treatment + Mass_pre ==================
+  tar_target(
+    name = stage_1_model_A,
+    command = model_A(data_clean)
+  ),
 
-  ## Stage 2 (a-paths — does treatment move each mediator?):
-  # Model B1: Diet      ~ Treatment + Diet_pre
+  ## Stage 2 (a-paths — does treatment move each mediator?):========================
+
+  # Model B1: Diet ~ Treatment + Diet_pre
+  tar_target(
+    name = stage_2_model_B1,
+    command = model_B1(data_clean)
+  ),
   # Model B2: Activity  ~ Treatment + Activity_pre
+  tar_target(
+    name = stage_2_model_B2,
+    command = model_B2(data_clean)
+  ),
   # Model B3: SelfCare  ~ Treatment + SelfCare_pre
-  
-  ## Stage 3 (b-paths — does each mediator predict outcome?):
+  tar_target(
+    name = stage_2_model_B3,
+    command = model_B3(data_clean)
+  ),
+
+  ## Stage 3 (b-paths — does each mediator predict outcome?)=========================
+
   # Model C1: Mass_post ~ Treatment + Mass_pre + Diet
+  tar_target(
+    name = stage_3_model_c1,
+    command = model_C1(data_clean)
+  ),
   # Model C2: Mass_post ~ Treatment + Mass_pre + Activity
+  tar_target(
+    name = stage_3_model_c2,
+    command = model_C2(data_clean) 
+  ),
   # Model C3: Mass_post ~ Treatment + Mass_pre + SelfCare
-  
-  ## Stage 4 (joint mediators):
+  tar_target(
+    name = stage_3_model_c3,
+    command = model_C3(data_clean)
+  ),
+
+  ## Stage 4 (joint mediators):=======================================================
   # Model D:  Mass_post ~ Treatment + Mass_pre + Diet + Activity + SelfCare
-  
-  ## Stage 5 (moderation — if a barrier matters, single-item):
+  tar_target(
+    name = stage_4_model_D,
+    command = model_D(data_clean)
+  ),
+
+  ## Stage 5 (moderation — if a barrier matters, single-item):=========================
   # Model E:  Mass_post ~ Treatment * [chosen_barrier] + Mass_pre + [mediators]
+  tar_target(
+    name = stage_5_model_E1_motivation,
+    command = model_E1(data_clean) 
+  ),
   
-  ## Stage 6 (full path model — mediation decomposition):
+  ## Stage 6 (full path model — mediation decomposition)================================
   # Diet, Activity, SelfCare ~ Treatment (+ baselines)
   # Mass_post ~ Treatment + Mass_pre + Diet + Activity + SelfCare
-  
-  ## Stage 7 (knowledge, separate strand):
-  # Model F:  Knowledge_post ~ Treatment + Knowledge_pre
-  #### Optional Mediated effect through behavioral latent ####
-  
-  ## CFA analysis on the behaviour indicators
   tar_target(
-    name = gen_cfa_behaviour,
-    command = dgp_cfa_behaviour2(n = 200)
-  ),
-  tar_target(
-    name = cfa_data_behaviour_data,
-    command = prepare_cfa_behaviour_data(data_clean)
-  ),
-  tar_target(
-    name = cfa_behaviour_recovery,
-    command = cfa_behaviour_model(gen_cfa_behaviour$data)
-  ),
-  tar_target(
-    name = cfa_behaviour,
-    command = cfa_behaviour_model(cfa_data_behaviour_data)
+    name = stage_6_model_F1,
+    command = model_F1(data_clean)
   )
 )
 
