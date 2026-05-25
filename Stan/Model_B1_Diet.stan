@@ -8,7 +8,7 @@ functions {
 // Input Data block 
 data{
 
-    int<lower=0> N; // Number of observations 
+    int<lower=1> N; // Number of observations 
     vector[N] treatment;
     vector[N] diet_pre;
 
@@ -33,36 +33,39 @@ parameters{
     real alpha;
     real beta_treatment;
     real beta_diet_pre;
-    real<lower=0> sigma;
+    real<lower=0.001> sigma;
 }
 // Model Block 
 model{
     // Priors 
-    alpha          ~ normal(0, 1);
-    beta_treatment ~ normal(0, 1);
-    beta_diet_pre  ~ normal(0, 1);
+    alpha          ~ normal(0, 0.5);
+    beta_treatment ~ normal(0, 0.5);
+    beta_diet_pre  ~ normal(0.8, 0.3);
     sigma          ~ exponential(1);
     
     // Model Likelihood
     diet_post_stand ~ normal(
-        alpha + beta_treatment * treatment + beta_diet_pre * diet_pre_stand,
-        sigma
+        alpha 
+        + beta_treatment * treatment 
+        + beta_diet_pre  * diet_pre_stand
+        ,sigma
     );
 }
 // Aditional calculations 
 generated quantities {
+    
     // EXPECTED VALUES / LINEAR PREDICTOR ====================
     vector[N] mu =  alpha + beta_treatment * treatment + beta_diet_pre * diet_pre_stand;
     
     // POSTERIOR PREDICTIVE GENERATION 
     // Simulated replicated outcomes for PPCs
-    vector[N] mass_post_rep = normal_predictive_rng(mu, sigma);
+    vector[N] diet_post_rep = normal_predictive_rng(mu, sigma);
     
     // MODEL FIT / INFORMATION CRITERIA ========================
     // Pointwise log-likelihood for:
     vector[N] log_lik = normal_pointwise_loglik(diet_post_stand, mu, sigma);
     
-    // Bayesian R²
+    // Bayesian R2
     real R2 = bayes_R2_gaussian(mu, sigma);
     
     // TREATMENT EFFECT ESTIMATION =================================
@@ -114,11 +117,10 @@ generated quantities {
     // POSTERIOR PREDICTIVE CHECKS =====================================
 
     // Bayesian posterior predictive p-values
-    int p_mean = ppc_indicator_mean(diet_post_stand, mass_post_rep);
-
-    int p_sd = ppc_indicator_sd(diet_post_stand, mass_post_rep);
-
-    int p_max = ppc_indicator_max(diet_post_stand, mass_post_rep);
+    int p_mean = ppc_indicator_mean(diet_post_stand, diet_post_rep);
+    int p_sd   = ppc_indicator_sd(diet_post_stand, diet_post_rep);
+    int p_max  = ppc_indicator_max(diet_post_stand, diet_post_rep);
 
 }
+
 
