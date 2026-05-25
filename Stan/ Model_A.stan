@@ -37,15 +37,17 @@ parameters{
 // Model Block 
 model{
     // Priors
-    beta_treatment ~ normal(0,   0.5);
+    alpha          ~ normal(0, 0.5);
+    beta_treatment ~ normal(0, 0.5);
     beta_mass_pre  ~ normal(0.8, 0.3);
-    alpha          ~ normal(0,   0.5);
     sigma          ~ exponential(1);
 
     // Model Likelihood 
     mass_post_stand ~ normal(
-        alpha + beta_treatment * treatment + beta_mass_pre * mass_pre_stand, 
-        sigma
+        alpha 
+        + beta_treatment * treatment 
+        + beta_mass_pre  * mass_pre_stand
+        ,sigma
     );
 }
 // Additional Calculations 
@@ -119,8 +121,7 @@ generated quantities {
 
     // Bayesian posterior predictive p-values
     int p_mean = ppc_indicator_mean(mass_post_stand, mass_post_rep);
+    int p_sd   = ppc_indicator_sd(mass_post_stand, mass_post_rep);
+    int p_max  = ppc_indicator_max(mass_post_stand, mass_post_rep);
 
-    int p_sd = ppc_indicator_sd(mass_post_stand, mass_post_rep);
-
-    int p_max = ppc_indicator_max(mass_post_stand, mass_post_rep);
 }
