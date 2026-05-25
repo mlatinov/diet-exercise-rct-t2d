@@ -1,16 +1,8 @@
+// Include Stan lib Function 
 functions {
-    // Z Score Standartization 
-    vector zscore(vector x) {
-        return (x - mean(x)) / sd(x);
-    }
-    // Build an equal-weight composite from a block of items with per-item signs.
-    vector composite(matrix items, vector sign) {
-        int N = rows(items);
-        int J = cols(items);
-        vector[N] acc = rep_vector(0, N);
-        for (j in 1:J) acc += sign[j] * zscore(items[, j]);
-        return acc / J;
-  }
+    #include "lib/utils.stanfunctions"
+    #include "lib/composites.stanfunctions"
+    #include "lib/diagnostics.stanfunctions"
 }
 // Data input Block 
 data{
@@ -20,14 +12,14 @@ data{
     // Composite Building block 
     int<lower=1> J_mass_pre;  matrix[N, J_mass_pre]  mass_pre_items;  vector[J_mass_pre]  mass_pre_sign;
     int<lower=1> J_mass_post; matrix[N, J_mass_post] mass_post_items; vector[J_mass_post] mass_post_sign;
-    int<lower=1> J_self_care_post; matrix[N, J_self_care_post] self_care_post_items; vector[J_self_care_post] self_care_post_sign;
+    int<lower=1> J_self_care_post; matrix[N, J_self_care_post] self_care_post_items; vector[J_self_care_post] self_care_post_sing;
 }
 // Transform Data Block 
 transformed data {
    // Build the indices 
    vector[N] mass_pre  = composite(mass_pre_items, mass_pre_sign);
    vector[N] mass_post = composite(mass_post_items, mass_post_sign);
-   vector[N] self_care_post = composite(self_care_post_items, self_care_post_sign);
+   vector[N] self_care_post = composite(self_care_post_items, self_care_post_sing);
 
    // Standatize all indices 
    vector[N] mass_pre_stand  = zscore(mass_pre);
@@ -40,15 +32,15 @@ parameters{
     real beta_treatment;
     real beta_mass_pre;
     real beta_self_care_post;
-    real<lower=0> sigma;
+    real<lower=0.001> sigma;
 }
 // Model block
 model{
     // Priors 
-    alpha ~ normal(0, 1);
-    beta_treatment      ~ normal(0, 1);
-    beta_mass_pre       ~ normal(0, 1);
-    beta_self_care_post ~ normal(0, 1);
+    alpha ~ normal(0, 0.5);
+    beta_treatment      ~ normal(0, 0.5);
+    beta_mass_pre       ~ normal(0.8, 0.3);
+    beta_self_care_post ~ normal(0, 0.5);
     sigma ~ exponential(1);
     
     // Model Likelihood 
@@ -68,19 +60,73 @@ generated quantities {
         + beta_mass_pre       * mass_pre_stand
         + beta_self_care_post * self_care_post_stand;
 
-    // Posterior Predictive Draws & Pointwise log Likehood 
-    vector[N] mass_post_stand_rep;
-    vector[N] log_lik;
-    for(i in 1:N){
-        mass_post_stand_rep[i] = normal_rng(mu[i], sigma);
-        log_lik[i]             = normal_lpdf(mass_post_stand[i] | mu[i], sigma); 
-    }
+    // POSTERIOR PREDICTIVE GENERATION =======================================
+    vector[N] mass_post_rep = normal_predictive_rng(mu, sigma);
 
-    // Bayesian R2
-    real R2;
-    {
-        real var_fit = variance(mu);
-        R2           = var_fit / (var_fit + square(sigma));
-    }
-     
+    // MODEL FIT / INFORMATION CRITERIA ======================================
+    vector[N] log_lik = normal_pointwise_loglik(mass_post_stand, mu, sigma);
+    real R2 = bayes_R2_gaussian(mu, sigma);
+
+    // EFFECT ESTIMATION =======================================================
+
+    // Residual direct treatment effect
+    real direct_treatment_effect     = beta_treatment;
+    real direct_treatment_effect_std = standardized_effect(beta_treatment, sigma);
+
+    // Self Care effect on metabolic burden
+    real self_care_effect     = beta_self_care_post;
+    real self_care_effect_std = standardized_effect(beta_self_care_post, sigma);
+
+     // ADJUSTED EXPECTED OUTCOMES ===============================================
+
+    // Expected metabolic burden at average self care + average baseline severity
+    real adjusted_mean_control =
+        alpha
+        + beta_mass_pre * mean(mass_pre_stand)
+        + beta_self_care_post * mean(self_care_post_stand);
+
+    real adjusted_mean_treated =
+        alpha
+        + beta_treatment
+        + beta_mass_pre * mean(mass_pre_stand)
+        + beta_self_care_post * mean(self_care_post_stand);
+
+    // Residual treatment effect after conditioning on self care 
+    real residual_ATE = adjusted_mean_treated - adjusted_mean_control;
+
+    // SELF CARE EFFECT INTERPRETATION ===========================================
+
+    // More self care reduces metabolic burden
+    int self_care_reduces_mass = effect_lt(beta_self_care_post, 0);
+
+    // More self care worsens metabolic burden
+    int self_care_increases_mass = effect_gt(beta_self_care_post, 0);
+
+    // Self Care effect practically negligible
+    int activity_effect_in_rope = in_rope(beta_self_care_post, -0.10, 0.10);
+
+    // Strong clinically meaningful self care effect
+    int activity_large_effect = effect_lt(beta_self_care_post, -0.30);
+
+    // DIRECT TREATMENT EFFECT INTERPRETATION ====================================
+
+    // Remaining treatment effect after conditioning on activity
+    int treatment_reduces_mass = effect_lt(beta_treatment, 0);
+    int treatment_effect_in_rope = in_rope(beta_treatment, -0.10, 0.10);
+
+    // Strong residual treatment effect
+    int treatment_large_reduction = effect_lt(beta_treatment, -0.30);
+
+    // RESIDUAL DIAGNOSTICS =======================================================
+    vector[N] raw_resid     = raw_residuals(mass_post_stand, mu);
+    vector[N] pearson_resid = pearson_residuals(mass_post_stand, mu, sigma);
+
+    // CALIBRATION DIAGNOSTICS ===================================================
+    vector[N] pit = normal_pit(mass_post_stand, mu, sigma);
+
+    // POSTERIOR PREDICTIVE CHECKS ===============================================
+    int p_mean = ppc_indicator_mean(mass_post_stand, mass_post_rep);
+    int p_sd   = ppc_indicator_sd(mass_post_stand, mass_post_rep);
+    int p_max  = ppc_indicator_max(mass_post_stand, mass_post_rep);
+
 }
