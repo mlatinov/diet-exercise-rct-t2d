@@ -50,3 +50,11 @@ rsconnect/
 
 /.quarto/
 **/*.quarto_ipynb
+
+/stan_results
+*.sbc_cache.rds
+/data
+/_targets
+/reports/treatment_bmi_effect_files/figure-html
+/reports/treatment_bmi_effect_files/libs
+reports/treatment_bmi_effect.html
