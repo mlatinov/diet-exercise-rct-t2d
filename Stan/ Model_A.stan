@@ -8,6 +8,7 @@ functions {
 // Input Data Block 
 data{
     int<lower=0> N; // N Observations 
+    int<lower=0,upper=1> prior_only; // Prior Switch 
     vector[N] treatment;
 
     // Item Block per contruct
@@ -32,7 +33,7 @@ parameters{
     real beta_treatment;
     real beta_mass_pre;
     real alpha;
-    real<lower=0> sigma;
+    real<lower=0.001> sigma;
 }
 // Model Block 
 model{
@@ -43,12 +44,14 @@ model{
     sigma          ~ exponential(1);
 
     // Model Likelihood 
-    mass_post_stand ~ normal(
-        alpha 
-        + beta_treatment * treatment 
-        + beta_mass_pre  * mass_pre_stand
-        ,sigma
-    );
+    if (prior_only == 0) {
+        mass_post_stand ~ normal(
+            alpha 
+            + beta_treatment * treatment 
+            + beta_mass_pre * mass_pre_stand
+            ,sigma
+        );
+    }
 }
 // Additional Calculations 
 generated quantities {

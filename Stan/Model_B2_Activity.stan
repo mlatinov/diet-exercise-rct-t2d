@@ -9,6 +9,7 @@ functions {
 data{
     int<lower=1> N;
     vector[N] treatment;
+    int<lower=0,upper=1> prior_only;
 
     // Indices Building blocks 
     vector<lower=0>[N] intensity_pre;
@@ -41,12 +42,14 @@ model{
     sigma             ~ exponential(1); 
 
     // Model Likelihood 
-    activity_post ~ normal(
-        alpha 
-        + beta_treatment    * treatment 
-        + beta_activity_pre * activity_pre
-        ,sigma
-    );
+    if(prior_only == 0){
+        activity_post ~ normal(
+            alpha 
+            + beta_treatment    * treatment 
+            + beta_activity_pre * activity_pre
+            ,sigma
+        );
+    }
 }
 // Aditional Calculations 
 generated quantities {

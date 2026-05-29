@@ -10,6 +10,7 @@ data{
 
     int<lower=1> N; // Number of observations 
     vector[N] treatment;
+    int<lower=0,upper=1> prior_only; // Prior Switch 
     vector[N] diet_pre;
 
     // Item blocks 
@@ -44,12 +45,14 @@ model{
     sigma          ~ exponential(1);
     
     // Model Likelihood
-    diet_post_stand ~ normal(
-        alpha 
-        + beta_treatment * treatment 
-        + beta_diet_pre  * diet_pre_stand
-        ,sigma
-    );
+    if(prior_only == 0){
+        diet_post_stand ~ normal(
+            alpha 
+            + beta_treatment * treatment 
+            + beta_diet_pre  * diet_pre_stand
+            ,sigma
+        );
+    }
 }
 // Aditional calculations 
 generated quantities {

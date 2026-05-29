@@ -9,6 +9,7 @@ functions {
 data{
     int<lower=1> N;
     vector[N] treatment;
+    int<lower=0,upper=1> prior_only;
 
     // Composite Building Blocks =========================================================================
 
@@ -52,13 +53,15 @@ model{
     sigma ~ exponential(1);
 
     // Model Likelihood 
-    mass_post_stand ~ normal(
-        alpha 
-        + beta_treatment * treatment 
-        + beta_mass_pre  * mass_pre_stand 
-        + beta_diet_post * diet_post_stand
-        ,sigma
-    );
+    if(prior_only == 0){
+        mass_post_stand ~ normal(
+            alpha 
+            + beta_treatment * treatment 
+            + beta_mass_pre  * mass_pre_stand 
+            + beta_diet_post * diet_post_stand
+            ,sigma
+        );
+    }
 } 
 // Aditional Calculations 
 generated quantities {

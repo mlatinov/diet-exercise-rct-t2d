@@ -8,6 +8,7 @@ functions {
 data{
     int<lower=1> N;
     vector[N] treatment;
+    int<lower=0,upper=1> prior_only;
 
     // Composite Building Block 
 
@@ -62,16 +63,19 @@ model{
     sigma ~ exponential(1);
     
     // Model Likelihood 
-    mass_post_stand ~ normal(
-        alpha 
-        + beta_treatment      * treatment
-        + beta_self_care_post * self_care_post_stand
-        + beta_diet_post      * diet_post_stand
-        + beta_self_care_post * self_care_post_stand
-        + beta_activity_post  * activity_post
-        ,sigma
-    );
+    if(prior_only == 0){
+        mass_post_stand ~ normal(
+            alpha 
+            + beta_treatment      * treatment
+            + beta_self_care_post * self_care_post_stand
+            + beta_diet_post      * diet_post_stand
+            + beta_self_care_post * self_care_post_stand
+            + beta_activity_post  * activity_post
+            ,sigma
+        );
+    }
 }
+
 // Additional Calculations 
 generated quantities {
 

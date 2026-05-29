@@ -2,7 +2,7 @@
 #### Functions to run the Stan path models staircase ####
 
 #### Model A:  Mass_post ~ Treatment + Mass_pre ####
-model_A <- function(data_clean){
+model_A <- function(data_clean, prior = 0){
   
   # Get the model 
   model_a <- cmdstanr::cmdstan_model(stan_file = "Stan/ Model_A.stan")
@@ -21,7 +21,8 @@ model_A <- function(data_clean){
       # Mass pre Indice
       J_mass_pre     = 2,
       mass_pre_items = as.matrix(data_clean[,c("bmi_pre", "weight_pre")]), 
-      mass_pre_sign  = c(1, 1)
+      mass_pre_sign  = c(1, 1),
+      prior_only     = prior
     ),
     iter_sampling = 1000,
     chains        = 4,
@@ -32,7 +33,7 @@ model_A <- function(data_clean){
 }
 
 #### Model B1: Diet ~ Treatment + Diet_pre ####
-model_B1 <- function(data_clean){
+model_B1 <- function(data_clean, prior = 0){
   
   # Get the model 
   b1 <- cmdstan_model(stan_file = "Stan/Model_B1_Diet.stan")
@@ -45,8 +46,9 @@ model_B1 <- function(data_clean){
       diet_pre  = data_clean$diet_score_pre,
       J_diet_post     = 2,
       diet_post_items = as.matrix(data_clean[,c("diet_score_post","diet_adherence")]),
-      diet_post_sign  = c(1, 1)
-      ),
+      diet_post_sign  = c(1, 1),
+      prior_only     = prior
+    ),
     iter_sampling = 1000,
     chains        = 4,
     output_dir    = "stan_results/",
@@ -56,7 +58,7 @@ model_B1 <- function(data_clean){
 }
 
 #### Model B2: Activity  ~ Treatment + Activity_pre
-model_B2 <- function(data_clean){
+model_B2 <- function(data_clean, prior = 0){
   
   # Get the model 
   b2 <- cmdstan_model(stan_file = "Stan/Model_B2_Activity.stan")
@@ -71,7 +73,8 @@ model_B2 <- function(data_clean){
       frequency_pre = data_clean$exercise_type_1_freq_pre,
       intensity_post = data_clean$exercise_intensity_post,
       duration_post  = data_clean$exercise_duration_post,
-      frequency_post = data_clean$exercise_type_1_freq_post
+      frequency_post = data_clean$exercise_type_1_freq_post,
+      prior_only     = prior
     ),
     iter_sampling = 1000,
     chains        = 4,
@@ -82,7 +85,7 @@ model_B2 <- function(data_clean){
 }
 
 #### Model B3: SelfCare  ~ Treatment + SelfCare_pre ####
-model_B3 <- function(data_clean){
+model_B3 <- function(data_clean, prior = 0){
   
   # Get the model 
   b3 <- cmdstan_model(stan_file = "Stan/Model_B3_SelfCare.stan")
@@ -95,7 +98,8 @@ model_B3 <- function(data_clean){
       self_care_pre    = data_clean$self_care_score_pre,
       J_self_care_post     = 2,
       self_care_post_items = as.matrix(data_clean[,c("self_care_score_post","exercise_adherence")]),
-      self_care_post_sing  = c(1, 1)
+      self_care_post_sing  = c(1, 1),
+      prior_only     = prior
     ),
     iter_sampling = 1000,
     chains        = 4,
@@ -106,7 +110,7 @@ model_B3 <- function(data_clean){
 }
 
 #### Model C1: Mass_post ~ Treatment + Mass_pre + Diet ####
-model_C1 <- function(data_clean){
+model_C1 <- function(data_clean, prior = 0){
 
   # Get the model 
   c1 <- cmdstanr::cmdstan_model(stan_file = "Stan/Model_C1.stan")
@@ -129,7 +133,8 @@ model_C1 <- function(data_clean){
       # Diet post Indice
       J_diet_post     = 2,
       diet_post_items = as.matrix(data_clean[,c("diet_score_post","diet_adherence")]),
-      diet_post_sign  = c(1, 1)
+      diet_post_sign  = c(1, 1),
+      prior_only     = prior
     ),
     # Sampler Arguments 
     iter_sampling =  1000,
@@ -141,7 +146,7 @@ model_C1 <- function(data_clean){
 }
 
 #### Model C2: Mass_post ~ Treatment + Mass_pre + Activity ####
-model_C2 <- function(data_clean){
+model_C2 <- function(data_clean, prior = 0){
 
   # Get the model 
   c2 <- cmdstanr::cmdstan_model(stan_file = "Stan/ Model_C2.stan")
@@ -165,7 +170,8 @@ model_C2 <- function(data_clean){
       # Activity Post
       intensity_post = data_clean$exercise_intensity_post,
       duration_post  = data_clean$exercise_duration_post,
-      frequency_post = data_clean$exercise_type_1_freq_post
+      frequency_post = data_clean$exercise_type_1_freq_post,
+      prior_only     = prior
     ),
     # Sampler Arguments
     iter_sampling = 1000,
@@ -178,7 +184,7 @@ model_C2 <- function(data_clean){
 }
 
 #### Model C3: Mass_post ~ Treatment + Mass_pre + SelfCare ####
-model_C3 <- function(data_clean){
+model_C3 <- function(data_clean, prior = 0){
 
   # Get the model 
   c3 <- cmdstanr::cmdstan_model(stan_file = "Stan/Model_C3.stan")
@@ -202,7 +208,8 @@ model_C3 <- function(data_clean){
       # Self Care
       J_self_care_post     = 2,
       self_care_post_items = as.matrix(data_clean[,c("self_care_score_post","exercise_adherence")]),
-      self_care_post_sing  = c(1, 1)
+      self_care_post_sing  = c(1, 1),
+      prior_only     = prior
     ),
     # Sampler Arguments
     iter_sampling = 1000,
@@ -214,7 +221,7 @@ model_C3 <- function(data_clean){
 }
 
 #### Model D:  Mass_post ~ Treatment + Mass_pre + Diet + Activity + SelfCare ####
-model_D <- function(data_clean){
+model_D <- function(data_clean, prior = 0){
 
   # Get the model
   d <- cmdstanr::cmdstan_model(stan_file = "Stan/ Model_D.stan")
@@ -248,7 +255,8 @@ model_D <- function(data_clean){
       # Activity Post
       intensity_post = data_clean$exercise_intensity_post,
       duration_post  = data_clean$exercise_duration_post,
-      frequency_post = data_clean$exercise_type_1_freq_post
+      frequency_post = data_clean$exercise_type_1_freq_post,
+      prior_only     = prior
     ),
     # Sampler Arguments
     iter_sampling = 1000,
@@ -260,7 +268,7 @@ model_D <- function(data_clean){
 }
 
 #### Model E:  Mass_post ~ Treatment * motivation + Mass_pre + [mediators] ####
-model_E1 <- function(data_clean){
+model_E1 <- function(data_clean, prior = 0){
 
   # Get the model 
   e1 <- cmdstanr::cmdstan_model(stan_file = "Stan/Model_E1_motivation.stan")
@@ -295,7 +303,8 @@ model_E1 <- function(data_clean){
       # Activity Post
       intensity_post = data_clean$exercise_intensity_post,
       duration_post  = data_clean$exercise_duration_post,
-      frequency_post = data_clean$exercise_type_1_freq_post
+      frequency_post = data_clean$exercise_type_1_freq_post,
+      prior_only     = prior
     ),
     # Sampler Arguments
     iter_sampling = 1000,
@@ -309,7 +318,7 @@ model_E1 <- function(data_clean){
 ####  Model F1 (full path model — mediation decomposition) ####
 # Diet, Activity, SelfCare ~ Treatment (+ baselines)
  # Mass_post ~ Treatment + Mass_pre + Diet + Activity + SelfCare
-model_F1 <- function(data_clean){
+model_F1 <- function(data_clean, prior = 0){
 
   # Get the model 
   f1 <- cmdstanr::cmdstan_model(stan_file = "Stan/Model_F1.stan")
@@ -348,7 +357,8 @@ model_F1 <- function(data_clean){
       frequency_post = data_clean$exercise_type_1_freq_post,
       intensity_pre  = data_clean$exercise_intensity_pre,
       duration_pre   = data_clean$exercise_duration_pre,
-      frequency_pre  = data_clean$exercise_type_1_freq_pre
+      frequency_pre  = data_clean$exercise_type_1_freq_pre,
+      prior_only     = prior
     ),
     # Sampler Arguments
     iter_sampling = 1000,

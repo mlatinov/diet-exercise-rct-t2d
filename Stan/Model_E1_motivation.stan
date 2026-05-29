@@ -9,6 +9,7 @@ functions {
 data{
     int<lower=1> N;
     vector[N] treatment;
+    int<lower=0,upper=1> prior_only;
     vector[N] barrier_motivation;
 
     // Composite Building blocks ============================================================= 
@@ -69,17 +70,19 @@ model{
     sigma ~ exponential(1);
 
     // Model Likelihood 
-    mass_post_stand ~ normal(
-        alpha
-        + beta_treatment * treatment
-        + beta_barrier_motivation * barrier_motivation
-        + beta_treatment_barrier  * treatment .* barrier_motivation
-        + beta_mass_pre  * mass_pre_stand
-        + beta_diet_post * diet_post_stand
-        + beta_self_care_post * self_care_post_stand
-        + beta_activity_post  * activity_post
-        ,sigma
-    );
+    if(prior_only == 0){
+        mass_post_stand ~ normal(
+            alpha
+            + beta_treatment * treatment
+            + beta_barrier_motivation * barrier_motivation
+            + beta_treatment_barrier  * treatment .* barrier_motivation
+            + beta_mass_pre  * mass_pre_stand
+            + beta_diet_post * diet_post_stand
+            + beta_self_care_post * self_care_post_stand
+            + beta_activity_post  * activity_post
+            ,sigma
+        );
+    }
 }
 // Additonal Calculations 
 generated quantities {

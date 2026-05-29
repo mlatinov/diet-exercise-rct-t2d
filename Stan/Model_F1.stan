@@ -11,6 +11,7 @@ functions {
 data{
     int<lower=1> N;
     vector[N] treatment;
+    int<lower=0,upper=1> prior_only;
 
     // =============== Composites Building Block ======================
     // Mass
@@ -143,16 +144,19 @@ model{
     beta_selfcare_mass ~ normal(0, 0.5); 
     sigma_mass ~ exponential(1);
 
-    mass_post_stand ~ normal(
-        alpha_mass 
-        + beta_treatment_mass * treatment
-        + beta_mass_pre       * mass_pre_stand
-        + beta_diet_mass      * diet_post_stand
-        + beta_activity_mass  * activity_post
-        + beta_selfcare_mass  * self_care_post
-        ,sigma_mass
-    );
+    if(prior_only == 0){
+        mass_post_stand ~ normal(
+            alpha_mass 
+            + beta_treatment_mass * treatment
+            + beta_mass_pre       * mass_pre_stand
+            + beta_diet_mass      * diet_post_stand
+            + beta_activity_mass  * activity_post
+            + beta_selfcare_mass  * self_care_post
+            ,sigma_mass
+        );
+    }
 }
+
 // Additional Calculations 
 generated quantities {
 

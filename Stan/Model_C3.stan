@@ -8,6 +8,7 @@ functions {
 data{
     int<lower=1> N;
     vector[N] treatment;
+    int<lower=0,upper=1> prior_only;
 
     // Composite Building block 
     int<lower=1> J_mass_pre;  matrix[N, J_mass_pre]  mass_pre_items;  vector[J_mass_pre]  mass_pre_sign;
@@ -44,13 +45,15 @@ model{
     sigma ~ exponential(1);
     
     // Model Likelihood 
-    mass_post_stand ~ normal(
-        alpha 
-        + beta_treatment      * treatment 
-        + beta_mass_pre       * mass_pre_stand
-        + beta_self_care_post * self_care_post_stand
-        , sigma
-    );
+    if(prior_only == 0){
+        mass_post_stand ~ normal(
+            alpha 
+            + beta_treatment      * treatment 
+            + beta_mass_pre       * mass_pre_stand
+            + beta_self_care_post * self_care_post_stand
+            , sigma
+        );
+    }
 }
 // Additional Calculatations 
 generated quantities {

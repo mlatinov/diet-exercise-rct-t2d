@@ -9,6 +9,7 @@ functions {
 data{
     int<lower=1> N;
     vector[N] treatment;
+    int<lower=0,upper=1> prior_only;
     vector[N] self_care_pre;
 
     // Indices Blocks 
@@ -47,12 +48,14 @@ model{
     sigma ~ exponential(1);
 
     // Model Likelihood
-    self_care_stand ~ normal(
-        alpha 
-        + beta_treatment     * treatment 
-        + beta_self_care_pre * self_care_pre_stand
-        , sigma
-    );
+    if(prior_only == 0){
+        self_care_stand ~ normal(
+            alpha 
+            + beta_treatment     * treatment 
+            + beta_self_care_pre * self_care_pre_stand
+            , sigma
+        );
+    }
 }
 
 // Additional Calculations 
