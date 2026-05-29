@@ -52,9 +52,17 @@ rsconnect/
 **/*.quarto_ipynb
 
 /stan_results
-*.sbc_cache.rds
+sbc_cache.rds
 /data
 /_targets
 /reports/treatment_bmi_effect_files/figure-html
 /reports/treatment_bmi_effect_files/libs
-reports/treatment_bmi_effect.html
+/reports/treatment_bmi_effect.html
+# Ignore compiled Stan executables
+Model_*
+ Model_*
+cfa_*
+cfa_behaviour
+
+# Keep Stan source files
+!*.stan
