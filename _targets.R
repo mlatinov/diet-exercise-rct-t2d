@@ -44,13 +44,13 @@ list(
   #### Stage 1 (anchor): Model A:  Mass_post ~ Treatment + Mass_pre 
   composite_models_stage_1_factory(data_clean = data_clean),
 
-  ####  Stage 2 (a-paths — does treatment move each mediator?)
+  #### Stage 2 (a-paths — does treatment move each mediator?)
   composite_models_stage_2_factory(data_clean = data_clean),
 
   #### Stage 3 (b-paths — does each mediator predict outcome?)
   composite_models_stage_3_factory(data_clean = data_clean),
 
-  ####  Stage 4 (joint mediators) 
+  #### Stage 4 (joint mediators) 
   composite_models_stage_4_factory(data_clean = data_clean),
 
   #### Stage 5 (moderation — if a barrier matters, single-item)
