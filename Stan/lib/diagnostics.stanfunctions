@@ -93,3 +93,108 @@ int in_rope_symmetric(real effect, real radius) {
 real standardized_effect(real effect, real sigma) {
   return effect / sigma;
 }
+
+// ============================================================================
+//  SKEW-NORMAL analogues  (SN(xi, omega, alpha_skew))
+//  xi = location (NOT the mean). Helpers below convert to mean / SD scale.
+// ============================================================================
+
+// delta reparametrization of the slant: delta in (-1, 1).
+real sn_delta(real alpha_skew) {
+  return alpha_skew / sqrt(1 + square(alpha_skew));
+}
+
+// Conditional MEAN of a skew-normal given location vector xi.
+//   E[Y] = xi + omega * delta * sqrt(2/pi)
+vector sn_mean(vector xi, real omega, real alpha_skew) {
+  real d = sn_delta(alpha_skew);
+  return xi + omega * d * sqrt(2.0 / pi());
+}
+
+// Marginal SD of a skew-normal (constant across observations).
+//   SD[Y] = omega * sqrt(1 - 2*delta^2/pi)
+real sn_sd(real omega, real alpha_skew) {
+  real d = sn_delta(alpha_skew);
+  return omega * sqrt(1 - 2 * square(d) / pi());
+}
+
+// Posterior predictive draw from a skew-normal.
+vector skew_normal_predictive_rng(vector xi, real omega, real alpha_skew) {
+  int N = num_elements(xi);
+  vector[N] y_rep;
+  for (n in 1:N) y_rep[n] = skew_normal_rng(xi[n], omega, alpha_skew);
+  return y_rep;
+}
+
+// Pointwise log-likelihood for {loo}.
+vector skew_normal_pointwise_loglik(vector y, vector xi, real omega, real alpha_skew) {
+  int N = num_elements(y);
+  vector[N] ll;
+  for (n in 1:N) ll[n] = skew_normal_lpdf(y[n] | xi[n], omega, alpha_skew);
+  return ll;
+}
+
+// PIT via the skew-normal CDF (should be ~Uniform(0,1) if calibrated).
+vector skew_normal_pit(vector y, vector xi, real omega, real alpha_skew) {
+  int N = num_elements(y);
+  vector[N] u;
+  for (n in 1:N) u[n] = skew_normal_cdf(y[n] | xi[n], omega, alpha_skew);
+  return u;
+}
+
+// Bayesian R² using the TRUE conditional mean and the TRUE residual SD.
+real bayes_R2_skew_normal(vector mu_mean, real omega, real alpha_skew) {
+  real var_fit = variance(mu_mean);
+  real resid_var = square(sn_sd(omega, alpha_skew));
+  return var_fit / (var_fit + resid_var);
+}
+
+// ============================================================================
+//  STUDENT-T analogues  (location-scale t_nu(mu, sigma))
+//  mu = conditional mean (symmetric, so = linear predictor).
+//  sigma = SCALE, not SD.  SD = sigma*sqrt(nu/(nu-2)) for nu>2.
+// ============================================================================
+
+// Residual SD of a location-scale Student-t. Guarded: undefined for nu<=2,
+// returns a large finite value so downstream R²/effect-size stay finite.
+real student_t_sd(real sigma, real nu) {
+  if (nu > 2)
+    return sigma * sqrt(nu / (nu - 2));
+  else
+    return positive_infinity();   // variance does not exist
+}
+
+// Posterior predictive draw.
+vector student_t_predictive_rng(vector mu, real sigma, real nu) {
+  int N = num_elements(mu);
+  vector[N] y_rep;
+  for (n in 1:N) y_rep[n] = student_t_rng(nu, mu[n], sigma);
+  return y_rep;
+}
+
+// Pointwise log-likelihood for {loo}.
+vector student_t_pointwise_loglik(vector y, vector mu, real sigma, real nu) {
+  int N = num_elements(y);
+  vector[N] ll;
+  for (n in 1:N) ll[n] = student_t_lpdf(y[n] | nu, mu[n], sigma);
+  return ll;
+}
+
+// PIT via the Student-t CDF (should be ~Uniform(0,1) if calibrated).
+vector student_t_pit(vector y, vector mu, real sigma, real nu) {
+  int N = num_elements(y);
+  vector[N] u;
+  for (n in 1:N) u[n] = student_t_cdf(y[n] | nu, mu[n], sigma);
+  return u;
+}
+
+// Bayesian R² using the TRUE residual variance. Guards nu<=2.
+real bayes_R2_student_t(vector mu, real sigma, real nu) {
+  real var_fit = variance(mu);
+  if (nu > 2) {
+    real resid_var = square(sigma) * nu / (nu - 2);
+    return var_fit / (var_fit + resid_var);
+  } else {
+    return 0;   // infinite residual variance -> R² -> 0
+  }
+}
