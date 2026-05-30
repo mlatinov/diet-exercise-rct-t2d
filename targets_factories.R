@@ -86,13 +86,32 @@ anthropometric_outcomes_factory <- function(data_clean){
 #### Composite models Stage 1 factory #####
 composite_models_stage_1_factory <- function(data_clean){
   list(
+    ## Normal Likelihood
     tar_target(
-      name = stage_1_model_A_prior_predictive,
-      command = model_A(data_clean, prior = 1)
+      name = stage_1_model_A_normal_pp,
+      command = model_A(data_clean, prior = 1, stan_file_A = "Stan/Stage_1_stan_models/ Model_A.stan")
     ),
     tar_target(
-      name = stage_1_model_A,
-      command = model_A(data_clean)
+      name = stage_1_model_A_normal,
+      command = model_A(data_clean, prior = 0, stan_file_A = "Stan/Stage_1_stan_models/ Model_A.stan")
+    ),
+    ## Skew Normal Likelihood
+    tar_target(
+      name = stage_1_model_A_skewnormal_pp,
+      command = model_A(data_clean, prior = 1, stan_file_A = "Stan/Stage_1_stan_models/Model_Skew_A.stan")
+    ),
+    tar_target(
+      name = stage_1_model_A_skewnormal,
+      command = model_A(data_clean, prior = 0, stan_file_A = "Stan/Stage_1_stan_models/Model_Skew_A.stan")
+    ),
+    ## Student T Likelihood
+    tar_target(
+      name = stage_1_model_A_tnormal_pp,
+      command = model_A(data_clean, prior = 1, stan_file_A = "Stan/Stage_1_stan_models/Model_StudentT_A.stan")
+    ),
+    tar_target(
+      name = stage_1_model_A_tnormal,
+      command = model_A(data_clean, prior = 0, stan_file_A = "Stan/Stage_1_stan_models/Model_StudentT_A.stan")
     )
   )
 }
