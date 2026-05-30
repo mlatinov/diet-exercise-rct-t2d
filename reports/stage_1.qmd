@@ -1,0 +1,587 @@
+---
+title: "Anthropometric outcomes — BMI Analysis"
+subtitle: "Family 1: BMI "
+author: "Your name"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: true
+    code-tools: true
+    theme: cosmo
+    fig-width: 8
+    fig-height: 5
+    fig-cap-location: bottom
+execute:
+  echo: true
+  warning: false
+  message: false
+  cache: false
+knitr:
+  opts_chunk:
+    fig.align: center
+---
+
+```{r}
+cat("Working directory:", getwd(), "\n")
+cat("_targets dir exists:", dir.exists("_targets"), "\n")
+cat("_targets.R exists:", file.exists("_targets.R"), "\n")
+cat("Files here:", paste(head(list.files()), collapse = ", "), "\n")
+
+# Libraries 
+library(targets)
+library(patchwork)
+library(tidyverse)
+library(stanviz)
+
+# Functions 
+source("R/causal_estimates.R")
+
+# Load the cleaned data from the pipeline and models 
+tar_load(data_clean)
+
+## Normal Model
+tar_load(stage_1_model_A_normal_pp)
+tar_load(stage_1_model_A_normal) 
+
+## Skew Normal Model
+tar_load(stage_1_model_A_skewnormal_pp)
+tar_load(stage_1_model_A_skewnormal) 
+
+## Student T Model
+tar_load(stage_1_model_A_tnormal_pp)
+tar_load(stage_1_model_A_tnormal) 
+
+
+### Additinal Functions #### 
+composite <- function(items, sign) {
+  
+  # Z-score each column
+  z_items <- scale(items)
+  
+  # Weighted composite
+  acc <- z_items %*% sign
+  
+  # Final composite divided by number of items
+  comp <- as.vector(acc / ncol(items))
+  
+  # Z-score the final result
+  comp_z <- as.vector(scale(comp))
+  
+  return(comp_z)
+}
+
+```
+
+
+# MCMC Sampler Diagnostics 
+
+## Trace Plots
+
+### Normal Model 
+```{r}
+normal_model <- plot_trace(
+  model = stage_1_model_A_normal,
+  pars  = c("beta_treatment","alpha","sigma")
+)
+normal_model
+
+```
+
+### Skew Normal Model 
+```{r}
+skew_model <- plot_trace(
+  model = stage_1_model_A_skewnormal,
+  pars  = c("beta_treatment","alpha_skew","omega")
+)
+skew_model
+```
+
+### T Student Model 
+```{r}
+t_model <- plot_trace(
+  model = stage_1_model_A_tnormal,
+  pars  = c("beta_treatment","alpha","sigma")
+)
+t_model
+```
+
+## Rhats and ESS
+
+### Normal Model 
+```{r}
+normal_r_hat <- plot_rhat(model = stage_1_model_A_normal)
+normal_ess_bulk <- plot_ess(model = stage_1_model_A_normal, type = "bulk")
+normal_ess_tail <- plot_ess(model = stage_1_model_A_normal, type = "tail")
+
+normal_r_hat / (normal_ess_bulk + normal_ess_tail) + 
+  plot_annotation(
+    title = "Rhat and Effective Sample Size Diagnostics",
+    theme = theme(
+      plot.title = element_text(size = 20)
+    ))
+```
+
+### Skew Normal 
+```{r}
+skew_normal_r_hat <- plot_rhat(model = stage_1_model_A_skewnormal)
+skew_normal_ess_bulk <- plot_ess(model = stage_1_model_A_skewnormal, type = "bulk")
+skew_normal_ess_tail <- plot_ess(model = stage_1_model_A_skewnormal, type = "tail")
+
+skew_normal_r_hat / (skew_normal_ess_bulk + skew_normal_ess_tail) + 
+  plot_annotation(
+    title = "Rhat and Effective Sample Size Diagnostics",
+    theme = theme(
+      plot.title = element_text(size = 20)
+    ))
+```
+
+### Student T 
+```{r}
+t_normal_r_hat <- plot_rhat(model = stage_1_model_A_tnormal)
+t_normal_ess_bulk <- plot_ess(model = stage_1_model_A_tnormal, type = "bulk")
+t_normal_ess_tail <- plot_ess(model = stage_1_model_A_tnormal, type = "tail")
+
+t_normal_r_hat / (t_normal_ess_bulk + t_normal_ess_tail) + 
+  plot_annotation(
+    title = "Rhat and Effective Sample Size Diagnostics",
+    theme = theme(
+      plot.title = element_text(size = 20)
+    ))
+```
+
+# Prior Predictive Checks 
+
+````{r}
+## Construct the Mass composite
+obs_y <- composite(items = as.matrix(data_clean[,c("bmi_post", "weight_post")]), sign = c(1, 1))
+````
+
+## Prior Density Plot 
+
+````{r}
+normal_prior_dens <- plot_prior_predictive_dens(
+  model = stage_1_model_A_normal_pp,
+  yrep_var = "mass_post_rep",
+  y        = obs_y,
+  n_draws       = 100,
+  outcome_label = "Mass Post" 
+)
+skew_normal_prior_dens <- plot_prior_predictive_dens(
+  model = stage_1_model_A_skewnormal_pp,
+  yrep_var = "mass_post_rep",
+  y        = obs_y,
+  n_draws       = 100,
+  outcome_label = "Mass Post" 
+)
+t_normal_prior_dens <- plot_prior_predictive_dens(
+  model = stage_1_model_A_tnormal,
+  yrep_var = "mass_post_rep",
+  y        = obs_y,
+  n_draws       = 100,
+  outcome_label = "Mass Post" 
+)
+(normal_prior_dens / normal_prior_dens / t_normal_prior_dens) +
+  plot_annotation(
+    title = "Compare Prior Predictive Distributions across models",
+    theme = theme(
+      plot.title = element_text(size = 20)
+    )
+  )
+````
+
+
+## Prior Predictive Stats
+
+### Normal Model 
+````{r}
+normal_mean <- plot_prior_predictive_stat(
+  model    = stage_1_model_A_normal_pp,
+  yrep_var = "mass_post_rep",
+  y        = obs_y,
+  stat     = "mean",
+  outcome_label =  "Mass Post"
+)
+
+normal_sd <- plot_prior_predictive_stat(
+  model    = stage_1_model_A_normal_pp,
+  yrep_var = "mass_post_rep",
+  y        = obs_y,
+  stat     = "sd",
+  outcome_label =  "Mass Post"
+)
+
+normal_max <- plot_prior_predictive_stat(
+  model    = stage_1_model_A_normal_pp,
+  yrep_var = "mass_post_rep",
+  y        = obs_y,
+  stat     = "max",
+  outcome_label =  "Mass Post"
+)
+
+(normal_mean + normal_sd) / normal_max +
+  plot_annotation(
+    title = "Normal Model Prior Predictive Statistics",
+    subtitle = "Use for Calibration of the Priors",
+    theme = theme(
+      plot.title = element_text(size = 20, face = "bold"),
+      plot.subtitle = element_text(size = 14)
+    )
+  )
+````
+
+### Skew Normal Model 
+````{r}
+skew_normal_mean <- plot_prior_predictive_stat(
+  model    = stage_1_model_A_skewnormal_pp,
+  yrep_var = "mass_post_rep",
+  y        = obs_y,
+  stat     = "mean",
+  outcome_label =  "Mass Post"
+)
+
+skew_normal_sd <- plot_prior_predictive_stat(
+  model    = stage_1_model_A_skewnormal_pp,
+  yrep_var = "mass_post_rep",
+  y        = obs_y,
+  stat     = "sd",
+  outcome_label =  "Mass Post"
+)
+
+skew_normal_max <- plot_prior_predictive_stat(
+  model    = stage_1_model_A_skewnormal_pp,
+  yrep_var = "mass_post_rep",
+  y        = obs_y,
+  stat     = "max",
+  outcome_label =  "Mass Post"
+)
+
+(skew_normal_mean + skew_normal_sd) / skew_normal_max +
+  plot_annotation(
+    title = "Skew Normal Model Prior Predictive Statistics",
+    subtitle = "Use for Calibration of the Priors",
+    theme = theme(
+      plot.title = element_text(size = 20, face = "bold"),
+      plot.subtitle = element_text(size = 14)
+    )
+  )
+````
+
+### Student T Model 
+````{r}
+t_normal_mean <- plot_prior_predictive_stat(
+  model    = stage_1_model_A_tnormal_pp,
+  yrep_var = "mass_post_rep",
+  y        = obs_y,
+  stat     = "mean",
+  outcome_label =  "Mass Post"
+)
+
+t_normal_sd <- plot_prior_predictive_stat(
+  model    = stage_1_model_A_tnormal_pp,
+  yrep_var = "mass_post_rep",
+  y        = obs_y,
+  stat     = "sd",
+  outcome_label =  "Mass Post"
+)
+
+t_normal_max <- plot_prior_predictive_stat(
+  model    = stage_1_model_A_tnormal_pp,
+  yrep_var = "mass_post_rep",
+  y        = obs_y,
+  stat     = "max",
+  outcome_label =  "Mass Post"
+)
+
+(t_normal_mean + t_normal_sd) / t_normal_max +
+  plot_annotation(
+    title = "Student T Model Prior Predictive Statistics",
+    subtitle = "Use for Calibration of the Priors",
+    theme = theme(
+      plot.title = element_text(size = 20, face = "bold"),
+      plot.subtitle = element_text(size = 14)
+    )
+  )
+````
+
+# Posterior predictive Checks 
+
+## Posterior Predictive Density 
+
+### Normal Model 
+```{r}
+normal_post <- plot_ppc_dens(
+  model = stage_1_model_A_normal,
+  y        =  obs_y,
+  yrep_var = "mass_post_rep",
+  outcome_label = "Mass Post"
+)
+
+(normal_post + normal_prior_dens) + 
+  plot_annotation(
+    title = "Comparison between Prior and Posterior for Normal Model",
+    theme = theme(
+      plot.title = element_text(size = 20)
+    )
+  ) 
+
+``` 
+
+### Skew Normal Model 
+```{r}
+skew_normal_post <- plot_ppc_dens(
+  model = stage_1_model_A_skewnormal,
+  y        =  obs_y,
+  yrep_var = "mass_post_rep",
+  outcome_label = "Mass Post"
+)
+
+(skew_normal_post + skew_normal_prior_dens) + 
+  plot_annotation(
+    title = "Comparison between Prior and Posterior for Skew Normal Model",
+    theme = theme(
+      plot.title = element_text(size = 20)
+    )
+  ) 
+
+``` 
+
+### Skew Normal Model 
+```{r}
+t_normal_post <- plot_ppc_dens(
+  model = stage_1_model_A_tnormal,
+  y        =  obs_y,
+  yrep_var = "mass_post_rep",
+  outcome_label = "Mass Post"
+)
+
+(t_normal_post + t_normal_prior_dens) + 
+  plot_annotation(
+    title = "Comparison between Prior and Posterior for Student T Model",
+    theme = theme(
+      plot.title = element_text(size = 20)
+    )
+  ) 
+
+``` 
+
+
+## Posterior Predictive Statistics
+
+### Normal 
+```{r}
+normal_post_mean <- plot_ppc_stat(
+  model = stage_1_model_A_normal,
+  y        = obs_y,
+  yrep_var = "mass_post_rep",
+  stat     = "mean"    
+)
+
+normal_post_sd <- plot_ppc_stat(
+  model = stage_1_model_A_normal,
+  y        = obs_y,
+  yrep_var = "mass_post_rep",
+  stat     = "sd"    
+)
+(normal_post_mean + normal_post_sd) +
+  plot_annotation(
+    title = "Posterior Predictive Statiscts for Normal Model",
+    theme = theme(
+      plot.title = element_text(size = 20)
+    )
+  )
+```
+
+### Skew Normal 
+```{r}
+skew_normal_post_mean <- plot_ppc_stat(
+  model = stage_1_model_A_skewnormal,
+  y        = obs_y,
+  yrep_var = "mass_post_rep",
+  stat     = "mean"    
+)
+
+skew_normal_normal_post_sd <- plot_ppc_stat(
+  model = stage_1_model_A_skewnormal,
+  y        = obs_y,
+  yrep_var = "mass_post_rep",
+  stat     = "sd"    
+)
+(skew_normal_post_mean + skew_normal_normal_post_sd) +
+  plot_annotation(
+    title = "Posterior Predictive Statiscts for Skew Normal Model",
+    theme = theme(
+      plot.title = element_text(size = 20)
+    )
+  )
+```
+
+### Student T 
+```{r}
+t_normal_post_mean <- plot_ppc_stat(
+  model = stage_1_model_A_tnormal,
+  y        = obs_y,
+  yrep_var = "mass_post_rep",
+  stat     = "mean"    
+)
+
+t_normal_normal_post_sd <- plot_ppc_stat(
+  model = stage_1_model_A_tnormal,
+  y        = obs_y,
+  yrep_var = "mass_post_rep",
+  stat     = "sd"    
+)
+(t_normal_post_mean + t_normal_normal_post_sd) +
+  plot_annotation(
+    title = "Posterior Predictive Statiscts for Student T Model",
+    theme = theme(
+      plot.title = element_text(size = 20)
+    )
+  )
+```
+
+
+## Per-observation predictive intervals
+```{r}
+normal_ppc_int <- plot_ppc_intervals(
+  model = stage_1_model_A_normal,
+  y        = obs_y,
+  yrep_var = "mass_post_rep",
+  outcome_label = "Mass Post"
+)
+skew_normal_ppc_int <- plot_ppc_intervals(
+  model = stage_1_model_A_skewnormal,
+  y        = obs_y,
+  yrep_var = "mass_post_rep",
+  outcome_label = "Mass Post"
+)
+t_normal_ppc_int <- plot_ppc_intervals(
+  model = stage_1_model_A_tnormal,
+  y        = obs_y,
+  yrep_var = "mass_post_rep",
+  outcome_label = "Mass Post"
+)
+(normal_ppc_int / skew_normal_ppc_int / t_normal_ppc_int) +
+  plot_annotation(
+    title = "Per-observation predictive intervals Comparison",
+    theme = theme(
+      plot.title = element_text(size = 20)
+    ) 
+  )
+```
+
+## Predictive error structure across fitted values and PIT calibration histogram
+
+### Normal 
+```{r}
+normal_pred_error <- plot_ppc_error_scatter(
+  model = stage_1_model_A_normal,
+  y     = obs_y,
+  yrep_var = "mass_post_rep"
+)
+
+normal_pit <- plot_ppc_pit(model = stage_1_model_A_normal)
+
+(normal_pred_error + normal_pit) + 
+  plot_annotation(
+    title = "Predictive error and PIT calibration Normal Model",
+    theme = theme(
+      plot.title = element_text(size = 20)
+    )
+  )
+
+```
+
+### Skew Normal 
+```{r}
+skew_normal_pred_error <- plot_ppc_error_scatter(
+  model = stage_1_model_A_skewnormal,
+  y     = obs_y,
+  yrep_var = "mass_post_rep"
+)
+
+skew_normal_pit <- plot_ppc_pit(model = stage_1_model_A_skewnormal)
+
+(skew_normal_pred_error + skew_normal_pit) + 
+  plot_annotation(
+    title = "Predictive error and PIT calibration Skew Normal Model",
+    theme = theme(
+      plot.title = element_text(size = 20)
+    )
+  )
+```
+
+### Student T  
+```{r}
+t_normal_pred_error <- plot_ppc_error_scatter(
+  model = stage_1_model_A_tnormal,
+  y     = obs_y,
+  yrep_var = "mass_post_rep"
+)
+
+t_normal_pit <- plot_ppc_pit(model = stage_1_model_A_tnormal)
+
+(t_normal_pred_error + t_normal_pit) + 
+  plot_annotation(
+    title = "Predictive error and PIT calibration Student T Model",
+    theme = theme(
+      plot.title = element_text(size = 20)
+    )
+  )
+```
+
+# Parameter posteriors
+
+## Skew Normal Forest Coeff Plot and Normal Comparison
+```{r}
+skew_forest <- plot_coef_forest(
+  model = stage_1_model_A_skewnormal,
+  pars = c("alpha_skew", "alpha","beta_treatment","omega","beta_mass_pre")
+)
+skew_forest
+
+normal_forest <- plot_coef_forest(
+  model = stage_1_model_A_normal,
+  pars = c("alpha","beta_treatment","sigma","beta_mass_pre")
+)
+(skew_forest / normal_forest) +
+  plot_annotation(
+    title = "Model Coeff Comaprisons Between Skew Normal and Normal Model",
+    theme = theme(
+      plot.title = element_text(size = 20)
+    )
+  ) 
+```
+
+## Skew Normal Halfeye densities
+```{r}
+skew_dens_coef <- plot_param_halfeye(
+  model = stage_1_model_A_skewnormal,
+  pars = c("alpha_skew", "alpha","beta_treatment","omega","beta_mass_pre")
+)
+skew_dens_coef
+```
+
+## Normal Halfeye densities
+```{r}
+normal_dens_coef <- plot_param_halfeye(
+  model = stage_1_model_A_normal,
+  pars = c("alpha","beta_treatment","sigma","beta_mass_pre")
+)
+normal_dens_coef
+```
+
+# Model comparison
+
+## Skew Normal Vs Normal Model 
+```{r}
+comp_loo_normal <- compute_loo(model = stage_1_model_A_normal)
+comp_loo_skew <- compute_loo(model = stage_1_model_A_skewnormal)
+
+plot_loo_compare(list(normal = comp_loo_normal, skew = comp_loo_skew))
+```
+
+
+
