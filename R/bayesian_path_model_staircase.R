@@ -2,11 +2,17 @@
 #### Functions to run the Stan path models staircase ####
 
 #### Model A:  Mass_post ~ Treatment + Mass_pre ####
-model_A <- function(data_clean, prior = 0){
-  
+model_A <- function(
+  data_clean, 
+  prior = 0, 
+  stan_file_A,
+  iter_sampling = 1000,
+  chains = 4,
+  adapt_delta = 0.95
+){
   # Get the model 
-  model_a <- cmdstanr::cmdstan_model(stan_file = "Stan/ Model_A.stan")
-
+  model_a <- cmdstanr::cmdstan_model(stan_file = stan_file_A)
+  
   # Fit the model 
   fit_model_a <- model_a$sample(
     data = list(
@@ -27,7 +33,8 @@ model_A <- function(data_clean, prior = 0){
     iter_sampling = 1000,
     chains        = 4,
     output_dir = "stan_results/",
-    seed       = 42 
+    seed       = 42,
+    adapt_delta = adapt_delta
   )
   return(fit_model_a)
 }
