@@ -1305,7 +1305,7 @@
     },
     "bit64": {
       "Package": "bit64",
-      "Version": "4.8.0",
+      "Version": "4.8.2",
       "Source": "Repository",
       "Title": "A S3 Class for Vectors of 64bit Integers",
       "Authors@R": "c( person(\"Michael\", \"Chirico\", email=\"michaelchirico4@gmail.com\", role=c(\"aut\", \"cre\")), person(\"Jens\", \"Oehlschlägel\", role=\"aut\"), person(\"Leonardo\", \"Silvestri\", role=\"ctb\"), person(\"Ofek\", \"Shilon\", role=\"ctb\"), person(\"Christian\", \"Ullerich\", role=\"ctb\") )",
@@ -1988,7 +1988,7 @@
     },
     "clipr": {
       "Package": "clipr",
-      "Version": "0.8.0",
+      "Version": "0.8.1",
       "Source": "Repository",
       "Type": "Package",
       "Title": "Read and Write from the System Clipboard",
@@ -2010,10 +2010,10 @@
       "VignetteBuilder": "knitr",
       "Encoding": "UTF-8",
       "Language": "en-US",
-      "RoxygenNote": "7.1.2",
+      "RoxygenNote": "7.3.3",
       "SystemRequirements": "xclip (https://github.com/astrand/xclip) or xsel (http://www.vergenet.net/~conrad/software/xsel/) for accessing the X11 clipboard, or wl-clipboard (https://github.com/bugaevc/wl-clipboard) for systems using Wayland.",
       "NeedsCompilation": "no",
-      "Author": "Matthew Lincoln [aut, cre] (<https://orcid.org/0000-0002-4387-3384>), Louis Maddox [ctb], Steve Simpson [ctb], Jennifer Bryan [ctb]",
+      "Author": "Matthew Lincoln [aut, cre] (ORCID: <https://orcid.org/0000-0002-4387-3384>), Louis Maddox [ctb], Steve Simpson [ctb], Jennifer Bryan [ctb]",
       "Maintainer": "Matthew Lincoln <matthew.d.lincoln@gmail.com>",
       "Repository": "CRAN"
     },
@@ -7795,6 +7795,52 @@
       "Author": "Simon Potter [aut, trl, cre], Simon Sapin [aut], Ian Bicking [aut]",
       "Maintainer": "Simon Potter <simon@sjp.co.nz>",
       "Repository": "CRAN"
+    },
+    "stanviz": {
+      "Package": "stanviz",
+      "Version": "0.0.0.9000",
+      "Source": "GitHub",
+      "Title": "Plotting Helpers for Stan Models",
+      "Authors@R": "person(\"Metodi\", \"Latinov\", email = \"your-email@example.com\", role = c(\"aut\", \"cre\"))",
+      "Description": "Reusable ggplot2-based plotting functions for fitted Stan models, covering prior and posterior predictive checks, MCMC diagnostics, parameter posteriors, conditional effects, mediation decomposition, prior sensitivity, and PSIS-LOO model comparison.",
+      "License": "MIT + file LICENSE",
+      "Encoding": "UTF-8",
+      "Roxygen": "list(markdown = TRUE)",
+      "Imports": [
+        "bayesplot",
+        "dplyr",
+        "ggdist",
+        "ggplot2",
+        "patchwork",
+        "posterior",
+        "readr",
+        "rlang",
+        "scales",
+        "stats",
+        "tibble",
+        "tidyr",
+        "tools",
+        "utils"
+      ],
+      "Suggests": [
+        "cmdstanr",
+        "loo",
+        "priorsense",
+        "rstan"
+      ],
+      "Config/roxygen2/version": "8.0.0",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "stanviz",
+      "RemoteUsername": "mlatinov",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "5f96aa322452d7ade8f8bf71fdf467c025554aac",
+      "NeedsCompilation": "no",
+      "Author": "Metodi Latinov [aut, cre]",
+      "Maintainer": "Metodi Latinov <your-email@example.com>",
+      "Depends": [
+        "R (>= 4.1.0)"
+      ]
     },
     "statsExpressions": {
       "Package": "statsExpressions",
