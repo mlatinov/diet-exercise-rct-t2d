@@ -90,28 +90,14 @@ vector composite(matrix items, vector sign) {
     return acc / J;
 }
 
-// MET-style activity composite
+// MET proxy: intensity (level) x duration (time) x frequency (sessions/wk).
+// Product matches the study's MET computation; single log tames right-skew.
 vector activity_index(
     vector intensity,
     vector duration,
     vector frequency
 ) {
     int N = rows(intensity);
-    // Log-transform to stabilize scale
-    vector[N] log_intensity = log1p(intensity);
-    vector[N] log_duration  = log1p(duration);
-    vector[N] log_frequency = log1p(frequency);
-        
-    // Standardize components
-    vector[N] z_intensity = zscore(log_intensity);
-    vector[N] z_duration  = zscore(log_duration);
-    vector[N] z_frequency = zscore(log_frequency);
-
-    // Equal-weight additive MET proxy
-    vector[N] activity;
-        
-    // Calculate the MEts 
-    activity = (z_intensity + z_duration + z_frequency) / 3;
-        
-    return activity;
+    vector[N] mets = intensity .* duration .* frequency;  // elementwise PRODUCT
+    return zscore(log1p(mets));                            // single log, then z
 }
