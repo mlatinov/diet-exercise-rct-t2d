@@ -40,24 +40,28 @@ model_A <- function(
 }
 
 #### Model B1: Diet ~ Treatment + Diet_pre ####
-model_B1 <- function(data_clean, prior = 0){
+model_B1 <- function(
+  data_clean,
+  prior = 0,
+  stan_file,
+  iter_sampling = 1000,
+  chains = 4
+){
   
   # Get the model 
-  b1 <- cmdstan_model(stan_file = "Stan/Model_B1_Diet.stan")
+  b1 <- cmdstan_model(stan_file = stan_file)
   
   # Fit the model B1
   fit_model_b1 <- b1$sample(
     data = list(
-      N         = nrow(data_clean),
-      treatment = data_clean$treatment,
-      diet_pre  = data_clean$diet_score_pre,
-      J_diet_post     = 2,
-      diet_post_items = as.matrix(data_clean[,c("diet_score_post","diet_adherence")]),
-      diet_post_sign  = c(1, 1),
-      prior_only     = prior
+      N          = nrow(data_clean),
+      treatment  = data_clean$treatment,
+      diet_pre   = data_clean$diet_score_pre,
+      diet_post  = data_clean$diet_score_post,
+      prior_only = prior
     ),
-    iter_sampling = 1000,
-    chains        = 4,
+    iter_sampling = iter_sampling,
+    chains        = chains,
     output_dir    = "stan_results/",
     seed          = 42 
   )
@@ -65,10 +69,16 @@ model_B1 <- function(data_clean, prior = 0){
 }
 
 #### Model B2: Activity  ~ Treatment + Activity_pre
-model_B2 <- function(data_clean, prior = 0){
+model_B2 <- function(
+  data_clean,
+  prior = 0,
+  stan_file,
+  iter_sampling = 1000,
+  chains        = 4
+){
   
   # Get the model 
-  b2 <- cmdstan_model(stan_file = "Stan/Model_B2_Activity.stan")
+  b2 <- cmdstan_model(stan_file = stan_file)
   
   # Fit the model 
   fit_b2 <- b2$sample(
@@ -83,8 +93,8 @@ model_B2 <- function(data_clean, prior = 0){
       frequency_post = data_clean$exercise_type_1_freq_post,
       prior_only     = prior
     ),
-    iter_sampling = 1000,
-    chains        = 4,
+    iter_sampling = iter_sampling,
+    chains        = chains,
     output_dir = "stan_results/",
     seed = 42
   )
@@ -92,10 +102,16 @@ model_B2 <- function(data_clean, prior = 0){
 }
 
 #### Model B3: SelfCare  ~ Treatment + SelfCare_pre ####
-model_B3 <- function(data_clean, prior = 0){
+model_B3 <- function(
+  data_clean,
+  prior = 0,
+  stan_file,
+  iter_sampling = 1000,
+  chains        = 4
+){
   
   # Get the model 
-  b3 <- cmdstan_model(stan_file = "Stan/Model_B3_SelfCare.stan")
+  b3 <- cmdstan_model(stan_file = stan_file)
   
   # Fit the model 
   fit_b3 <- b3$sample(
@@ -108,8 +124,8 @@ model_B3 <- function(data_clean, prior = 0){
       self_care_post_sing  = c(1, 1),
       prior_only     = prior
     ),
-    iter_sampling = 1000,
-    chains        = 4,
+    iter_sampling = iter_sampling,
+    chains        = chains,
     output_dir = "stan_results/",
     seed = 42
   )
