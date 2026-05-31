@@ -122,29 +122,29 @@ composite_models_stage_2_factory <- function(data_clean){
     # Model B1: Diet ~ Treatment + Diet_pre
     tar_target(
       name = stage_2_model_B1,
-      command = model_B1(data_clean)
+      command = model_B1(data_clean, prior = 0, stan_file = "Stan/Stage_2_stan_models/Model_B1_Diet.stan")
     ),
     tar_target(
-      name = stage_2_model_B1_prior,
-      command = model_B1(data_clean, prior = 1)
+      name = stage_2_model_B1_pp,
+      command = model_B1(data_clean, prior = 1, stan_file = "Stan/Stage_2_stan_models/Model_B1_Diet.stan")
     ),
     # Model B2: Activity  ~ Treatment + Activity_pre
     tar_target(
       name = stage_2_model_B2,
-      command = model_B2(data_clean)
+      command = model_B2(data_clean, prior = 0, stan_file = "Stan/Stage_2_stan_models/Model_B2_Activity.stan")
     ),
     tar_target(
-      name = stage_2_model_B2_prior,
-      command = model_B2(data_clean, prior = 1)
+      name = stage_2_model_B2_pp,
+      command = model_B2(data_clean, prior = 1, stan_file = "Stan/Stage_2_stan_models/Model_B2_Activity.stan")
     ),
     # Model B3: SelfCare  ~ Treatment + SelfCare_pre
     tar_target(
       name = stage_2_model_B3,
-      command = model_B3(data_clean)
+      command = model_B3(data_clean, prior = 0, stan_file = "Stan/Stage_2_stan_models/Model_B3_SelfCare.stan")
     ),
     tar_target(
-      name = stage_2_model_B3_prior,
-      command = model_B3(data_clean, prior = 1)
+      name = stage_2_model_B3_pp,
+      command = model_B3(data_clean, prior = 1, stan_file = "Stan/Stage_2_stan_models/Model_B3_SelfCare.stan")
     )
   )
 }
