@@ -1,0 +1,340 @@
+---
+title: "Anthropometric outcomes — BMI Analysis"
+subtitle: "Family 1: BMI "
+author: "Your name"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: true
+    code-tools: true
+    theme: cosmo
+    fig-width: 8
+    fig-height: 5
+    fig-cap-location: bottom
+execute:
+  echo: true
+  warning: false
+  message: false
+  cache: false
+knitr:
+  opts_chunk:
+    fig.align: center
+---
+
+```{r}
+cat("Working directory:", getwd(), "\n")
+cat("_targets dir exists:", dir.exists("_targets"), "\n")
+cat("_targets.R exists:", file.exists("_targets.R"), "\n")
+cat("Files here:", paste(head(list.files()), collapse = ", "), "\n")
+
+# Libraries 
+library(targets)
+library(patchwork)
+library(tidyverse)
+library(stanviz)
+
+# Functions 
+source("R/causal_estimates.R")
+
+# Load the cleaned data from the pipeline and models 
+tar_load(data_clean)
+
+## Model B1: Diet ~ Treatment + Diet_pre
+tar_load(stage_2_model_B1)
+tar_load(stage_2_model_B1_pp) 
+
+## Model B2: Activity  ~ Treatment + Activity_pre
+tar_load(stage_2_model_B2)
+tar_load(stage_2_model_B2_pp) 
+
+## Model B3: SelfCare  ~ Treatment + SelfCare_pre
+tar_load(stage_2_model_B3)
+tar_load(stage_2_model_B3_pp) 
+
+
+### Additinal Functions #### 
+composite <- function(items, sign) {
+  
+  # Z-score each column
+  z_items <- scale(items)
+  
+  # Weighted composite
+  acc <- z_items %*% sign
+  
+  # Final composite divided by number of items
+  comp <- as.vector(acc / ncol(items))
+  
+  # Z-score the final result
+  comp_z <- as.vector(scale(comp))
+  
+  return(comp_z)
+}
+
+```
+
+# Model B1: Diet ~ Treatment + Diet_pre
+
+```{r}
+y_obs <- as.vector(scale(data_clean$diet_score_post))
+```
+
+## MCMC Sampler Diagnostocs
+
+### Trace Rank Plots
+```{r}
+plot_rank(
+    model = stage_2_model_B1,
+    pars  = c("beta_treatment", "beta_diet_pre", "alpha", "sigma")
+)
+``` 
+
+### Rhats and ESS
+```{r}
+b1_rhat     <- plot_rhat(model = stage_2_model_B1)
+b1_ess_bulk <- plot_ess(model  = stage_2_model_B1, type = "bulk")
+b1_ess_tail <- plot_ess(model  = stage_2_model_B1, type = "tail")
+
+(b1_ess_bulk + b1_ess_tail) / b1_rhat + 
+    plot_annotation(
+        title = "Rhat and Effective Sample Size Tail and Bulk",
+        theme = theme(
+            plot.title = element_text(size = 20)
+        )
+    )
+
+```
+
+## Prior Predictive Checks
+
+### Prior Predictive Distribution 
+```{r}
+plot_prior_predictive_dens(
+    model = stage_2_model_B1_pp,
+    yrep_var = "diet_post_rep",
+    y        = y_obs,
+    n_draws = 100,
+    outcome_label = "Diet Score Post-Intervention"
+)
+```
+
+### Prior Predictive Stats
+```{r}
+mean_stat <- plot_prior_predictive_stat(
+    model = stage_2_model_B1_pp,
+    yrep_var = "diet_post_rep",
+    y        = y_obs,
+    stat     = "mean", 
+    outcome_label = "Prior Predictive Mean"
+)
+sd_stat <- plot_prior_predictive_stat(
+    model = stage_2_model_B1_pp,
+    yrep_var = "diet_post_rep",
+    y        = y_obs,
+    stat     = "sd", 
+    outcome_label = "Prior Predictive SD"
+)
+
+(mean_stat + sd_stat) + 
+    plot_annotation(
+        title = "Prior Predictive Mean and SD",
+        theme = theme(
+            plot.title = element_text(size = 20)
+        )
+    )
+```
+
+## Posterior Predictive Checks
+
+### Posterior Predictive Density 
+```{r}
+plot_ppc_dens(
+    model = stage_2_model_B1,
+    y = y_obs,
+    yrep_var = "diet_post_rep",
+    outcome_label = "Post-Intervention Diet Score"
+)
+```
+
+### Posterior Predictive Stats
+```{r}
+post_mean <- plot_ppc_stat(
+    model = stage_2_model_B1,
+    y = y_obs,
+    yrep_var = "diet_post_rep",
+    stat     = "mean" 
+)
+post_sd <- plot_ppc_stat(
+    model = stage_2_model_B1,
+    y = y_obs,
+    yrep_var = "diet_post_rep",
+    stat     = "sd"
+)
+post_intervals <- plot_ppc_intervals(
+    model = stage_2_model_B1,
+    y = y_obs,
+    yrep_var = "diet_post_rep",
+    outcome_label = "Post Intervention Diet Score"
+)
+
+(post_mean + post_sd) / post_intervals+ 
+    plot_annotation(
+        title = "Posterior Predictive Mean and SD",
+        theme = theme(
+            plot.title = element_text(size = 20)
+        )
+    )
+
+```
+
+### Posterior Errors
+```{r}
+post_err <- plot_ppc_error_scatter(
+    model = stage_2_model_B1,
+    y = y_obs,
+    yrep_var = "diet_post_rep"
+)
+pit_calid <- plot_ppc_pit(model = stage_2_model_B1, pit_var = "pit" )
+
+(post_err + pit_calid) + 
+    plot_annotation(
+        title = "Posterior Predictive Error Checks",
+        theme = theme(
+            plot.title = element_text(size = 20)
+        )
+    )
+```
+
+# Model B2: Activity  ~ Treatment + Activity_pre
+
+```{r}
+y_obs <- composite(items = )
+```
+
+## MCMC Sampler Diagnostocs
+
+### Trace Rank Plots
+```{r}
+plot_rank(
+    model = stage_2_model_B1,
+    pars  = c("beta_treatment", "beta_diet_pre", "alpha", "sigma")
+)
+``` 
+
+### Rhats and ESS
+```{r}
+b1_rhat     <- plot_rhat(model = stage_2_model_B1)
+b1_ess_bulk <- plot_ess(model  = stage_2_model_B1, type = "bulk")
+b1_ess_tail <- plot_ess(model  = stage_2_model_B1, type = "tail")
+
+(b1_ess_bulk + b1_ess_tail) / b1_rhat + 
+    plot_annotation(
+        title = "Rhat and Effective Sample Size Tail and Bulk",
+        theme = theme(
+            plot.title = element_text(size = 20)
+        )
+    )
+
+```
+
+## Prior Predictive Checks
+
+### Prior Predictive Distribution 
+```{r}
+plot_prior_predictive_dens(
+    model = stage_2_model_B1_pp,
+    yrep_var = "diet_post_rep",
+    y        = y_obs,
+    n_draws = 100,
+    outcome_label = "Diet Score Post-Intervention"
+)
+```
+
+### Prior Predictive Stats
+```{r}
+mean_stat <- plot_prior_predictive_stat(
+    model = stage_2_model_B1_pp,
+    yrep_var = "diet_post_rep",
+    y        = y_obs,
+    stat     = "mean", 
+    outcome_label = "Prior Predictive Mean"
+)
+sd_stat <- plot_prior_predictive_stat(
+    model = stage_2_model_B1_pp,
+    yrep_var = "diet_post_rep",
+    y        = y_obs,
+    stat     = "sd", 
+    outcome_label = "Prior Predictive SD"
+)
+
+(mean_stat + sd_stat) + 
+    plot_annotation(
+        title = "Prior Predictive Mean and SD",
+        theme = theme(
+            plot.title = element_text(size = 20)
+        )
+    )
+```
+
+## Posterior Predictive Checks
+
+### Posterior Predictive Density 
+```{r}
+plot_ppc_dens(
+    model = stage_2_model_B1,
+    y = y_obs,
+    yrep_var = "diet_post_rep",
+    outcome_label = "Post-Intervention Diet Score"
+)
+```
+
+### Posterior Predictive Stats
+```{r}
+post_mean <- plot_ppc_stat(
+    model = stage_2_model_B1,
+    y = y_obs,
+    yrep_var = "diet_post_rep",
+    stat     = "mean" 
+)
+post_sd <- plot_ppc_stat(
+    model = stage_2_model_B1,
+    y = y_obs,
+    yrep_var = "diet_post_rep",
+    stat     = "sd"
+)
+post_intervals <- plot_ppc_intervals(
+    model = stage_2_model_B1,
+    y = y_obs,
+    yrep_var = "diet_post_rep",
+    outcome_label = "Post Intervention Diet Score"
+)
+
+(post_mean + post_sd) / post_intervals+ 
+    plot_annotation(
+        title = "Posterior Predictive Mean and SD",
+        theme = theme(
+            plot.title = element_text(size = 20)
+        )
+    )
+
+```
+
+### Posterior Errors
+```{r}
+post_err <- plot_ppc_error_scatter(
+    model = stage_2_model_B1,
+    y = y_obs,
+    yrep_var = "diet_post_rep"
+)
+pit_calid <- plot_ppc_pit(model = stage_2_model_B1, pit_var = "pit" )
+
+(post_err + pit_calid) + 
+    plot_annotation(
+        title = "Posterior Predictive Error Checks",
+        theme = theme(
+            plot.title = element_text(size = 20)
+        )
+    )
+```
